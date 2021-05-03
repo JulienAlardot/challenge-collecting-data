@@ -56,6 +56,32 @@ class DataStruct:
         str
     )
 
+    __TRUEDTYPES = (
+        int,
+        str,
+        "category",
+        str,
+        str,
+        int,
+        "category",
+        "category",
+        "category",
+        int,
+        "category",
+        int,
+        int,
+        bool,
+        bool,
+        bool,
+        bool,
+        int,
+        bool,
+        int,
+        int,
+        int,
+        bool,
+        "category"
+    )
     COLUMNSDATA = {c: d for c, d in zip(COLUMNS, DTYPES)}
 
     __DATATEMPLATE = pd.DataFrame([], columns=COLUMNS)
@@ -65,6 +91,23 @@ class DataStruct:
 
     DATAFRAMETEMPLATE = __DATATEMPLATE.copy()
 
+    @classmethod
+    def clean_data(cls, df):
+        df = df.copy()
+        df = df.dropna(how="all")
+        df = df.drop_duplicates(keep="first")
+        df = cls.convert_data(df)
+        return df
+
+    @classmethod
+    def convert_data(cls, df):
+        df = df.copy()
+        for columns, dtype in zip(df.columns, cls.__TRUEDTYPES):
+            if dtype == "category":
+                df[columns] = pd.Categorical(df[columns])
+            else:
+                df[columns] = df[columns].astype(str)
+        return df
 
 if __name__ == "__main__":
     print(DataStruct.COLUMNS)
