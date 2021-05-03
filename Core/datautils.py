@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-class DataBase:
+class DataStruct:
     COLUMNS = (
         "id",
         "url",
@@ -67,10 +67,10 @@ class DataBase:
 
 
 if __name__ == "__main__":
-    print(DataBase.COLUMNS)
-    print(DataBase.DTYPES)
+    print(DataStruct.COLUMNS)
+    print(DataStruct.DTYPES)
 
-    for k, v in DataBase.COLUMNSDATA.items():
+    for k, v in DataStruct.COLUMNSDATA.items():
         print((k, v))
-    print(DataBase.DATAFRAMETEMPLATE.info())
+    print(DataStruct.DATAFRAMETEMPLATE.info())
 
