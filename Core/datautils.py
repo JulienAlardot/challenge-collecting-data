@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from typing import List
 
 _zipcodes = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(__file__)),"Data", "zipcodes.csv"),index_col=0)
 
@@ -117,7 +118,7 @@ class DataStruct:
         return where
 
     @classmethod
-    def get_zipcode(cls, locality):
+    def get_zipcode(cls, locality) -> List:
         where = _zipcodes[_zipcodes["local"].str.lower() == locality.lower()]["zipcode"].values
         return where
 
