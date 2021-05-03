@@ -1,5 +1,8 @@
 import pandas as pd
+import os
+from typing import List
 
+_zipcodes = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(__file__)),"Data", "zipcodes.csv"),index_col=0)
 
 class DataStruct:
     COLUMNS = (
@@ -109,6 +112,20 @@ class DataStruct:
                 df[columns] = df[columns].astype(str)
         return df
 
+    @classmethod
+    def get_locality(cls, zipcode):
+        where = _zipcodes[_zipcodes["zipcode"] == zipcode]["local"].str.capitalize().values
+        return where
+
+    @classmethod
+    def get_zipcode(cls, locality) -> List:
+        where = _zipcodes[_zipcodes["local"].str.lower() == locality.lower()]["zipcode"].values
+        return where
+
+    @classmethod
+    def get_zipcode_data(cls):
+        return _zipcodes.copy()
+
 if __name__ == "__main__":
     print(DataStruct.COLUMNS)
     print(DataStruct.DTYPES)
@@ -116,4 +133,6 @@ if __name__ == "__main__":
     for k, v in DataStruct.COLUMNSDATA.items():
         print((k, v))
     print(DataStruct.DATAFRAMETEMPLATE.info())
-
+    print(DataStruct.get_locality(5101))
+    print(DataStruct.get_zipcode("Loyers"))
+    print(DataStruct.get_zipcode_data())
