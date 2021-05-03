@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 
-_zipcodes = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(__file__)),"Data", "zipcodes.csv"))
+_zipcodes = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(__file__)),"Data", "zipcodes.csv"),index_col=0)
 
 class DataStruct:
     COLUMNS = (
@@ -121,6 +121,10 @@ class DataStruct:
         where = _zipcodes[_zipcodes["local"].str.lower() == locality.lower()]["zipcode"].values
         return where
 
+    @classmethod
+    def get_zipcode_data(cls):
+        return _zipcodes.copy()
+
 if __name__ == "__main__":
     print(DataStruct.COLUMNS)
     print(DataStruct.DTYPES)
@@ -130,3 +134,4 @@ if __name__ == "__main__":
     print(DataStruct.DATAFRAMETEMPLATE.info())
     print(DataStruct.get_locality(5101))
     print(DataStruct.get_zipcode("Loyers"))
+    print(DataStruct.get_zipcode_data())
