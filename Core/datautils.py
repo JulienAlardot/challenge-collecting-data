@@ -1,7 +1,9 @@
-import pandas as pd
 import os
 
-_zipcodes = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(__file__)),"Data", "zipcodes.csv"))
+import pandas as pd
+
+_zipcodes = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(__file__)), "Data", "zipcodes.csv"))
+
 
 class DataStruct:
     COLUMNS = (
@@ -120,6 +122,7 @@ class DataStruct:
     def get_zipcode(cls, locality):
         where = _zipcodes[_zipcodes["local"].str.lower() == locality.lower()]["zipcode"].values
         return where
+
 
 if __name__ == "__main__":
     print(DataStruct.COLUMNS)
