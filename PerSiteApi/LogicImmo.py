@@ -45,6 +45,7 @@ def search_for_urls():
 
                 if not found:
                     text = row["local"].lower().replace(" ", "-").replace("é", "e").replace("è", "e").replace("â", "a")
+                    test = test.replace("û", "u").replace("ê", 'e').replace("î", "i")
                     url = __root_url + f'{sell_type_contect}{text}-{row["zipcode"]},{page},--------16776966-,---,---.html'
 
                     response = requests.get(url)
@@ -85,6 +86,7 @@ def search_raw_infos():
 
             print(desc)
             for element in soup.findAll("ul", id="property-details-icons"):
+                print(element)
                 icons += bs4utils.extract_text_from_tag(element)
 
             print(icons)
