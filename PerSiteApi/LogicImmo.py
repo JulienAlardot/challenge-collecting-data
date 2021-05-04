@@ -20,8 +20,9 @@ __addresses = set()
 __pattern = re.compile(r'/en/(buy|rent)/.+/[a-zA-Z]+-[0-9]+/.+.html')
 
 __zipcode_df = pd.read_csv(__zipcode_file)
+__headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0'}
 
-for sell_type_contect in ('/en/buy/immo-for-sale/', '/en/rent/real-estate-for-rent/'):
+for sell_type_contect in ('/en/buy/immo-for-sale/'):
     for i, row in __zipcode_df.iterrows():
         print(row["local"])
         page = 1
@@ -30,9 +31,8 @@ for sell_type_contect in ('/en/buy/immo-for-sale/', '/en/rent/real-estate-for-re
         while found:
             found = False
             url = __root_url + f'{sell_type_contect}{text}-{row["zipcode"]},{page},--------16776966-,---,---.html'
-            response = requests.get(url)
+            response = requests.get(url, headers=__headers)
             buy_soup = bs4.BeautifulSoup(response.content, features="html.parser")
-            print(url, page)
 
             for link in (f.get("href") for f in buy_soup.findAll("a")):
                 if link:
@@ -41,19 +41,20 @@ for sell_type_contect in ('/en/buy/immo-for-sale/', '/en/rent/real-estate-for-re
                         __addresses.add(__root_url + link)
 
             if not found:
-                text = row["local"].lower().replace(" ","-")
+                text = row["local"].lower().replace(" ","-").replace("é","e").replace("è", "e").replace("â", "a")
                 url = __root_url + f'{sell_type_contect}{text}-{row["zipcode"]},{page},--------16776966-,---,---.html'
 
                 response = requests.get(url)
                 buy_soup = bs4.BeautifulSoup(response.content, features="html.parser")
-                print(url, page)
 
                 for link in (f.get("href") for f in buy_soup.findAll("a")):
                     if link:
                         if re.search(__pattern, link):
                             found = True
                             __addresses.add(__root_url + link)
-            time.sleep(2 + random.random() + random.random())
+
+            print(url,response.status_code, page, len(__addresses))
+            time.sleep(random.random()+0.5)
             page += 1
 
 with open(__logic_immo_url, 'w+', encoding=True) as url_file:
