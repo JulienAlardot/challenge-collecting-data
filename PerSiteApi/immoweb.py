@@ -33,11 +33,11 @@ class Immoweb:
             "Terrace Area": ["property", "terraceSurface"],
             "Garden": ["property", "hasGarden"],
             "Garden Area": ["property", "gardenSurface"],
-            "Surface of the land": ["property", "land","surface"],  # !!! land peut être null !
+            "Surface of the land": ["property", "land", "surface"],  # !!! land peut être null !
             "Surface area of the plot of land": ["property", "land","surface"],  # !!! land peut être null !
-            "Number of facades": ["property", "building","facadeCount"],
+            "Number of facades": ["property", "building", "facadeCount"],
             "Swimming pool": ["property", "hasSwimmingPool"],
-            "State of the building": ["property", "building","condition"]
+            "State of the building": ["property", "building", "condition"]
         }
 
     # retourne le milieu du texte entre les deux balises et le texte qui suit
