@@ -16,7 +16,7 @@ class Immoweb():
         self.list_URL: List[str] = []
         self.url_error: List[str] = []
         self.zip_code: List = DataStruct().get_zipcode_data()
-        self.addresses: set = {}
+        self.addresses: set = {"https://www.immoweb.be/fr/annonce/appartement/a-vendre/sint-pieters-leeuw/1600/9312492?searchId=609139890de6c"}
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0'}
         self.regex = re.compile("\d{1,3}$")
 
@@ -75,13 +75,13 @@ class Immoweb():
             self.addresses.add(element.get_attribute('href'))
         print(len(self.addresses), " adresses de biens - ", self.addresses)
 
+        driver.close()
+
         #  Section who verify if we must turn to next page
         if max(pagination) == num_pages:
-            driver.close()
             return True
         else:
             self._scan_page_list(url, num_pages+1 )
-            driver.close()
 
     def _generator_db_url(self) -> bool:
 
