@@ -18,7 +18,7 @@ def extract_text_from_tag(tag):
             raise TypeError(f"element was of type {type(element)}. Expecting str or bs4.Tag")
     text = text.replace("\t","")
     while text.find("\n\n") != -1:
-        text.replace("\n\n", "\n")
+        text = text.replace("\n\n", "\n")
     return text
 
 
