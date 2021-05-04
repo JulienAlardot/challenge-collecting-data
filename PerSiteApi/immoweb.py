@@ -1,12 +1,12 @@
-
-import re
-from typing import List, Dict
+import sys
 from Core.datautils import DataStruct
+import re
 import pandas as pd
 import bs4
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from typing import List, Dict
 
 
 class Immoweb():
@@ -16,8 +16,10 @@ class Immoweb():
         self.list_URL: List[str] = []
         self.url_error: List[str] = []
         self.zip_code: List = DataStruct().get_zipcode_data()
-        self.adresses: set = {}
+        self.addresses: set = {}
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0'}
+        self.regex = re.compile("\d{1,3}$")
+
 
     def _ajouteURL(self, url, valeur=False):
         # vérifie si une url est dans le fichier
@@ -40,34 +42,67 @@ class Immoweb():
 
     def run(self):
         #  print (self.zip_code.zipcode)
-        #  self._generator_db_url()
-        self._scan_page_list('https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre/louvain-la-neuve/1348?countries=BE&orderBy=cheapest')
+        self._generator_db_url()
+        #self._scan_page_list('https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&postalCodes=BE-1348')
 
-    def _scan_page_list(self, url: str) -> bool:
-        print(url)
-        driver = webdriver.PhantomJS()
-        driver.get(my_url)
-        p_element = driver.find_element_by_id(id_='main-content')
-        print(p_element.text)
+    # https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-1341,1348
+    def _scan_page_list(self, url: str, num_pages: int=1) -> bool:
+        """
+        Scan the page with result of research.
+        :param url: An String url without page=xx
+        :param nbr_pages: Number of the page to scan
+        :return: Now, I dont know.
+        """
+        pager = f"&page={num_pages}"
+        url_paged = url + pager
+        print("pager : ", url_paged)
+        driver = webdriver.Firefox()
+        driver.get(url_paged)
+
+        li_pagination_item = driver.find_elements_by_css_selector('li.pagination__item')
+        pagination = [0]
+        for element in li_pagination_item:
+            nombre = re.search(self.regex, element.text)
+            if nombre != None:
+                pagination.append(int(nombre.group(0)))
+        print(pagination)
+        if max(pagination) == 333:
+            print("333 pages a scaner => url passée : ", url_paged)
+            return False
+
+        a_elements = driver.find_elements_by_css_selector('a.card__title-link')
+        for element in a_elements:
+            self.addresses.add(element.get_attribute('href'))
+        print(len(self.addresses), " adresses de biens - ", self.addresses)
+
+        #  Section who verify if we must turn to next page
+        if max(pagination) == num_pages:
+            driver.close()
+            return True
+        else:
+            self._scan_page_list(url, num_pages+1 )
+            driver.close()
 
     def _generator_db_url(self) -> bool:
-        end_url = '&orderBy=cheapest'
 
+        count_limit = 3
         count_sale = 0
-        url_vente = "https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&postalCodes=BE-"
+        url_vente = "https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-"
         for zip in self.zip_code.zipcode:
-            url_list = f"{url_vente}{zip}{end_url}"
-            self._scan_page_list(url_list)
-            count_sale += 1
+            if count_sale < count_limit: # temporaire, pour éviter que le programme tourne de trop lors du dev.
+                url_list = f"{url_vente}{zip}"
+                self._scan_page_list(url_list)
+                count_sale += 1
+                print(count_sale)
 
-        count_rent = 0
-        url_location = "https://www.immoweb.be/fr/recherche/maison-et-appartement/a-louer?countries=BE&postalCodes=BE-"
+        """count_rent = 0
+        url_location = "https://www.immoweb.be/fr/recherche/maison-et-appartement/a-louer?countries=BE&orderBy=cheapest&postalCodes=BE-"
         for zip in self.zip_code.zipcode:
-            url_list = f"{url_location}{zip}{end_url}"
+            url_list = f"{url_location}{zip}"
             self._scan_page_list(url_list)
-            count_rent += 1
+            count_rent += 1"""
 
-        print('page de ventes', count_sale, 'pages de locations', count_rent)
+        print('page de ventes', count_sale)
 
         return True
 
