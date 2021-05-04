@@ -16,6 +16,7 @@ __data_path = os.path.join(__root_path, "Data")
 __database_file = os.path.join(__data_path, "database.csv")
 __zipcode_file = os.path.join(__data_path, "zipcodes.csv")
 __logic_immo_url = os.path.join(__data_path, "logic_immo_url.csv")
+__logic_immo_raw_data = os.path.join(__data_path, "logic_immo_raw_data.csv")
 __root_url = r"https://www.logic-immo.be"
 __addresses = set()
 __pattern = re.compile(r'/fr/vente/.+/[a-zA-Z]+-[0-9]+/.+.html')
@@ -24,7 +25,7 @@ __zipcode_df = pd.read_csv(__zipcode_file)
 __headers = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
     "Accept-Encoding": "gzip, deflate",
-    "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
+    "Accept-Language": "fr-FR,en-US;q=0.9,en;q=0.8",
     "Dnt": "1",
     "Host": "httpbin.org",
     "Upgrade-Insecure-Requests": "1",
@@ -70,34 +71,37 @@ def search_for_urls():
             if len(__addresses) % 480 == 0:
                 with open(__logic_immo_url, 'wt+', newline='', encoding="utf-8") as url_file:
                     f_w = csv.writer(url_file)
-                    f_w.writerows(([address] for address in __addresses))
+                    f_w.writerows(([address] for address in sorted(__addresses)))
 
 
 def search_raw_infos():
     with open(__logic_immo_url, "rt", encoding='utf-8') as url_file:
-        f_r = csv.reader(url_file)
-        f_r = ['https://www.logic-immo.be/en/buy/apartments-for-sale/erpent-5101/penthouse-4-rooms-207c419f-bdb8-0d36-4c0a-182a2b9df7b2.html#5']
-        for url in f_r:
-            response = requests.get(url, headers=__headers)
-            soup = bs4.BeautifulSoup(response.content, features="html.parser")
-            title = ''
-            desc = ''
-            icons = ""
-            for element in soup.findAll("h1", class_="c-details_title c-details_title--primary"):
-                title += bs4utils.extract_text_from_tag(element)
-            print(title)
+        with open(__logic_immo_raw_data, "w+", encoding="utf-8", newline="") as text_file:
+            f_r = csv.reader(url_file)
+            f_w = csv.writer(text_file)
+            for url in f_r:
+                url = url[0]
+                print(url)
+                response = requests.get(url, headers=__headers)
+                soup = bs4.BeautifulSoup(response.content, features="html.parser")
+                title = ''
+                desc = ''
+                icons = ""
+                for element in soup.findAll("h1", class_="c-details_title c-details_title--primary"):
+                    title += bs4utils.extract_text_from_tag(element).replace("\n", " ").replace('"', "").replace("'",
+                                                                                                                 '')
 
-            for element in soup.findAll('p', class_="js-description"):
-                desc += bs4utils.extract_text_from_tag(element)
+                for element in soup.findAll('p', class_="js-description"):
+                    desc += bs4utils.extract_text_from_tag(element).replace("\n", " ").replace('"', "").replace("'", '')
 
-            print(desc)
-            for element in soup.findAll("ul", id="property-details-icons"):
-                icons += bs4utils.extract_text_from_tag(element)
+                for element in soup.findAll("ul", id="property-details-icons"):
+                    for link in element.findAll("li", attrs={"data-toggle": 'tooltip'}):
+                        icons += link.get("title") + bs4utils.extract_text_from_tag(link).replace("\n", " ") + ','
 
-            print(icons)
-            time.sleep(random.random()+0.2)
+                f_w.writerow((title.replace(",", "."), desc.replace(",", "."), icons.replace('"', "").replace("'", '')))
+
 
 
 if __name__ == "__main__":
-    search_for_urls()
+    # search_for_urls()
     search_raw_infos()
