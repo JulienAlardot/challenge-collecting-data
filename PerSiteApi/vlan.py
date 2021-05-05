@@ -63,11 +63,14 @@ list_column = []
 htmlparser = etree.HTMLParser()
 with open(__vlan_url, 'a+') as url_file:
     with open(__vlan_link, 'w+') as url_index_file:
-        with open(__vlan_data, 'a+') as url_data_file:
+        with open(__vlan_data, 'w+') as url_data_file:
             for offset in range(1,168):
                 link_list = []
                 offset_url = other_url+url_page_offset+str(offset)
-                r = requests.get(offset_url, headers=headers)
+                r = requests.get(offset_url, headers=headers) #http://validate.perfdrive.com/immovlan/captcha?ssa=caee399c-1aad-40c8-b615-a7fc6af6c779&ssb=mh0pep5i6pihbb24dm3h0k11k&ssc=http%3a%2f%2fimmo.vlan.be%2ffr%2fimmobilier%3fpropertytypes%3dappartement%2cmaison%2cbusiness%2cterrain%2cgarage%2cbien-d%2527investissement%2ckot%2cdivers%26transactiontypes%3da-vendre%2ca-louer%2cen-vente-publique%2cen-colocation%26propertysubtypes%3dappartement%2crez-de-chaussee%2cduplex%2cpenthouse%2cstudio%2cloft%2ctriplex%2cmaison%2cvilla%2cimmeuble-mixte%2cmaison-de-maitre%2cfermette%2cbungalow%2cchalet%2cchateau%2csurface-commerciale%2cbureaux%2csurface-industrielle%2cfonds-de-commerce%2cferme%2cterrain-a-batir%2cterrain%2cterrain-agricole%2cparking%2cgarage%2cmaison-de-rapport%2ckot-etudiant%2cbien-divers%26countries%3dbelgique%26noindex%3d1%26pageOffset%3d1&ssd=970959273986341&sse=olapjpemfpm@ggc&ssf=eb0f8f4c4fcb66138e2a0b11b2df4950e89d1b7e&ssg=2faf2114-77e1-4b80-b1e9-4d0c95be0d68&ssh=f205d560-d340-40d2-9250-da0d2d778adb&ssi=971a1329-be01-ef47-d925-95a95e54fd43&ssj=4e22da2e-2c6e-424e-a5dc-de03652e22d6&ssk=Immovlan-support@shieldsquare.com&ssl=970959273986341&ssm=97095927398634125109709592739863&ssn=eb0f8f4ca5d1f5d57d8406ea13b0eb0f8f4ceb0f8&sso=eb0f8eb0f8f4c00a330b2f5dce4a1fe5eeb0f8f4c&ssp=970959273997095162029709592739&ssq=970959210942970959273970959273986341&ssr=OTQuMTA0LjE5Ny4yMTM=&sss=Mozilla/5.0%20(compatible;%20Yahoo!%20Slurp;%20http://help.yahoo.com/help/us/ysearch/slurp)&sst=Mozilla/5.0%20(Windows%20NT%2010.0;%20Win64;%20x64)%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko)%20Chrome/80.0.3987.149%20Safiri/537.36&ssu=Mozilla/5.0%20(compatible;%20Yahoo!%20Slurp;%20http://help.yahoo.com/help/us/ysearch/slurp)&ssv=o3pp9pv@2pl342s&ssw=&ssx=970959273986341&ssy=olapjpemfpm@ggcdiod@albblcnpekfaojknblho&ssz=eb0f8f4c4fcb661
+                if "http://validate.perfdrive.com/immovlan/captcha" in r.url:
+                    print("captchah")
+                    exit(0)
                 url_index_file.write(str(r.status_code))
                 url_index_file.write(offset_url)
                 soup = BeautifulSoup(r.content, 'lxml')
@@ -94,10 +97,11 @@ with open(__vlan_url, 'a+') as url_file:
                         """
                         column_name = data_from_collapsed_section.find("div", {"class": re.compile("^col-[0-9]+$")})
                         value = data_from_collapsed_section.find("div", {"class": re.compile("^col-[0-9]+ text.*$")})
-                        if column_name is not none:
-                            list_column.append(column_name.text)
-                            url_data_file.write(column_name.text)
+                        if column_name is not None:
+                            list_column.append(column_name.text.strip())
+                            url_data_file.write(column_name.text.strip())
                             url_data_file.write("\n")
+
 
                 url_index_file.write("\n")
 
