@@ -80,7 +80,7 @@ with open(__vlan_url, 'a+') as url_file:
                     item_url = __root_url + links
                     r = urlopen(item_url)
                     tree = etree.parse(r, htmlparser)
-                    xpathselector = '//div[@id="collapse_general_info"]/div[@class="row"]/text()'
+                    xpathselector = '//div[@id="collapse_general_info"]/div[@class="row"]'
                     # catch HTTPError
                     results = tree.xpath(xpathselector)
                     for info in results:
