@@ -59,6 +59,7 @@ for elem in soup.find_all('article', attrs={"class": "list-view-item"}):
 #print(soup.text)
 """ propertytype"""
 page_list = []
+list_column = []
 htmlparser = etree.HTMLParser()
 with open(__vlan_url, 'a+') as url_file:
     with open(__vlan_link, 'w+') as url_index_file:
@@ -70,22 +71,33 @@ with open(__vlan_url, 'a+') as url_file:
                 url_index_file.write(str(r.status_code))
                 url_index_file.write(offset_url)
                 soup = BeautifulSoup(r.content, 'lxml')
-                for element in soup.findAll('a'):
-                    link = element.get("href")
+                for soup_links in soup.findAll('a'):
+                    link = soup_links.get("href")
                     if 'a-vendre' in link and '/fr/detail/'  in link:
                         link_list.append(link)
                 for links in sorted(link_list):
                     url_file.write(links)
                     url_file.write("\n")
                     item_url = __root_url + links
-                    r = urlopen(item_url)
-                    tree = etree.parse(r, htmlparser)
-                    xpathselector = '//div[@id="collapse_general_info"]/div[@class="row"]'
-                    # catch HTTPError
-                    results = tree.xpath(xpathselector)
-                    for info in results:
-                        url_data_file.write(info)
-                        url_data_file.write("\n")
+                    r = requests.get(item_url, headers=headers)
+                    soup = BeautifulSoup(r.content, 'lxml')
+                    infos = soup.findAll("div", {"id": re.compile("^collapse.*$")})
+                    for data_from_collapsed_section in  infos:
+                        """
+                        #"collapse_general_info"
+                        <div class="col-6">Etat du bien</div><div class="col-6 text-right">À rénover</div><div class="small-border w-100"></div>
+                        data = {'First_Name': ['Jeff','Tina','Ben','Maria','Rob'],
+                            'Last_Name':['Miller','Smith','Lee','Green','Carter'],
+                            'Age':[33,42,29,28,57]
+                                }
+                            df = pd.DataFrame(data, columns = ['First_Name','Last_Name','Age'])
+                        """
+                        column_name = data_from_collapsed_section.find("div", {"class": re.compile("^col-[0-9]+$")})
+                        value = data_from_collapsed_section.find("div", {"class": re.compile("^col-[0-9]+ text.*$")})
+                        if column_name is not none:
+                            list_column.append(column_name.text)
+                            url_data_file.write(column_name.text)
+                            url_data_file.write("\n")
 
                 url_index_file.write("\n")
 
