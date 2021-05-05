@@ -10,6 +10,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
+from time import sleep
 from typing import List, Dict
 import requests
 import json
@@ -125,12 +126,13 @@ class Immoweb:
     def loop_immo(self):
 
         i = 0
-        max = 20
+        max = 75000
         for url in self.url_immo:
             if url not in self.datas_immoweb["Url"]:
                 new_sale = self.scan_page_bien_immobilier(url)
                 self.datas_immoweb = self.datas_immoweb.append(new_sale)
                 i += 1
+                sleep(0.3)
             if i > max:
                 break
 
