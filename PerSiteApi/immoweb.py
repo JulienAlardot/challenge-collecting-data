@@ -135,6 +135,9 @@ class Immoweb:
                 sleep(0.3)
             if i > max:
                 break
+            if i % 100 == 0:
+                self.save_data_to_csv()
+                sleep(0.5)
 
         print(type(self.datas_immoweb), self.datas_immoweb)
         self.save_data_to_csv()
