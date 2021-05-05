@@ -198,7 +198,7 @@ class Immoweb:
             print(len(self.url_immo), " adresses url de biens")
 
             #  Section who verify if we must turn to next page
-            if max(pagination) == num_pages:
+            if max(pagination) == num_pages or pagination[0] == 0:
                 return True
             else:
                 self._scan_page_list(url, num_pages+1)
@@ -209,13 +209,13 @@ class Immoweb:
         count_sale = 0
         for zip in self.zip_code.zipcode:
             url_list = f"{self.url_vente}{zip}"
-            if count_sale < count_limit:
+            #if count_sale < count_limit:
                                                 # temporaire, pour éviter que le programme tourne de trop lors du dev.
-                print("run on : ", url_list)
-                self._scan_page_list(url_list)
-                count_sale += 1
-                print(count_sale)
-                self._save_set_to_csv()
+            print("run on : ", url_list)
+            self._scan_page_list(url_list)
+            count_sale += 1
+            print(count_sale)
+            self._save_set_to_csv()
 
         print('page de ventes', count_sale)
 
