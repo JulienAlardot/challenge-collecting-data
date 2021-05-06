@@ -26,11 +26,15 @@ class Immoweb:
         self.path_results_search = os.path.join(self._data_immoweb_path, "url_results_search.csv")
         self.path_immo = os.path.join(self._data_immoweb_path, "url_immo.csv")
         self.path_data_immoweb = os.path.join(self._data_immoweb_path, "datas_immoweb.csv")
+        self.path_clusters = os.path.join(self._data_immoweb_path, "url_cluster.csv")
 
         s = pd.read_csv(self.path_results_search)["0"]
         self.url_results_search: set = set(s)
         s = pd.read_csv(self.path_immo)["0"]
         self.url_immo: set = set(s)
+        s = pd.read_csv(self.path_clusters)["0"]
+        self.url_cluster: set = set(s)
+        self.url_immo.union(self.url_cluster)
         self.datas_immoweb = pd.read_csv(self.path_data_immoweb, index_col=0)
 
         self.r_num_page = re.compile("\d{1,3}$")
@@ -103,11 +107,13 @@ class Immoweb:
 
         if "accordion--cluster" in texte:
             url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
-            self.url_immo.add(url)
+            self.url_cluster.add(url)
+            i = 2
             while "classified__list-item-link" in suite:
-                url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
-                self.url_immo.add(url)
-            raise Exception("cluster ", url)
+                url, suite = self.coupepage(suite, '<a class="classified__list-item-link" href="', '">')
+                self.url_cluster.add(url)
+                i += 1
+            raise Exception(i, "clusters", url)
         elif "404 not found" not in texte:
             texte, suite = self.coupepage(texte, "window.classified = ", "};")
             texte += "}"
@@ -170,6 +176,10 @@ class Immoweb:
 
         with open(self.path_immo, "w") as file:
             df = pd.DataFrame(self.url_immo)
+            df.to_csv(file)
+
+        with open(self.path_clusters, 'w') as file:
+            df = pd.DataFrame(self.url_cluster)
             df.to_csv(file)
 
     # https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-1341,1348
