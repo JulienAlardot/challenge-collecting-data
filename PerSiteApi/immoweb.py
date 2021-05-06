@@ -167,6 +167,7 @@ class Immoweb:
         self.driver.close()
         self.loop_immo()
         self.save_data_to_csv()
+        # self.clean_all_datas()
         print("fini")
 
     def _save_set_to_csv(self):
@@ -174,6 +175,7 @@ class Immoweb:
             df = pd.DataFrame(self.url_results_search)
             df.to_csv(file)
 
+        # self.clean_url_immo()
         with open(self.path_immo, "w") as file:
             df = pd.DataFrame(self.url_immo)
             df.to_csv(file)
@@ -181,6 +183,14 @@ class Immoweb:
         with open(self.path_clusters, 'w') as file:
             df = pd.DataFrame(self.url_cluster)
             df.to_csv(file)
+
+    def clean_url_immo(self):
+        new_set = set()
+        print ("clean url_immo")
+        for url in self.url_immo:
+            new_url = url.split("?searchId=")[0]
+            new_set.add(new_url)
+        self.url_immo = new_set
 
     # https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-1341,1348
     def _scan_page_list(self, url: str, num_pages: int = 1) -> bool:
@@ -240,6 +250,10 @@ class Immoweb:
             self._save_set_to_csv()
 
         print('page de ventes', count_sale)
+
+        return True
+
+    def clean_all_datas(self):
 
         return True
 
