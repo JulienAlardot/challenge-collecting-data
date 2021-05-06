@@ -25,7 +25,7 @@ __non_url_data_cols: Tuple = (
     "Number of facades",
     "State of the building",
 )
-pd.options.display.max_columns = 10
+pd.options.display.max_columns = 22
 
 
 def convert_datatypes(df):
@@ -142,7 +142,7 @@ def create_database():
 
     df: pd.DataFrame = pd.concat([df1, df2], axis=0, ignore_index=True)
     df: pd.DataFrame = df[df["Type of sale"] != "life_annuity"]
-    print(df.info())
+    # print(df.info())
     df["Source"] = pd.Categorical(df["Source"])
     df.loc[df["Type of property"] == "maison", "Type of property"] = "house"
     df.loc[df["Type of property"] == "appartment", "Type of property"] = "apartment"
@@ -220,11 +220,14 @@ def create_database():
     ] = "good"
     df.loc[df["State of the building"] == "as_new", "State of the building"] = "good"
     df.loc[df["Terrace"] == "true", "Terrace"] = 1
+    df = df[np.logical_or(df["Surface of the land"] >= 0, df["Surface of the land"] == np.nan)]
+    df["Surface area of the land"] = df["Surface of the land"]
+    df = df[np.logical_or(df["Surface of the land"] >= 0, df["Surface of the land"] == np.nan)]
 
     df: pd.DataFrame = convert_datatypes(df)
 
     # print(df["Source"].unique())
-    print(df.info())
+    # print(df.info())
 
     df.to_csv(__database_file)
 
@@ -234,11 +237,11 @@ def load_database(lightweight=True):
     Load the final database file in a lightweight type
     :param bool lightweight: force the data conversion into a lightweight version of the database
     """
-    df: pd.DataFrame = pd.read_csv(__database_file)
+    df: pd.DataFrame = pd.read_csv(__database_file, index_col=0)
     if lightweight:
         df: pd.DataFrame = convert_datatypes(df)
     return df
 
-
 if __name__ == "__main__":
     create_database()
+    print(load_database().describe())
