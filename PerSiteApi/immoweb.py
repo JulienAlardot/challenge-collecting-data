@@ -104,24 +104,27 @@ class Immoweb:
         print(url)
         page = requests.get(url)
         texte = page.text
-        texte, suite = self.coupepage(texte, "window.classified = ", "};")
-        texte += "}"
-        json_immo = json.loads(texte)
+        if "404 not found" not in texte :
+            texte, suite = self.coupepage(texte, "window.classified = ", "};")
+            texte += "}"
+            json_immo = json.loads(texte)
 
-        new_sale = self.json_to_dic(json_immo)
-        if new_sale["Zip"] is None:
-            zip = re.search(self.r_zip_code, url).group(0)
-            zip = zip[1:-1]
-            new_sale["Zip"] = int(zip)
+            new_sale = self.json_to_dic(json_immo)
+            if new_sale["Zip"] is None:
+                zip = re.search(self.r_zip_code, url).group(0)
+                zip = zip[1:-1]
+                new_sale["Zip"] = int(zip)
 
-        if new_sale["Locality"] is None:
-            new_sale["Locality"] = DataStruct.get_locality(new_sale["Zip"])[0]
+            if new_sale["Locality"] is None:
+                new_sale["Locality"] = DataStruct.get_locality(new_sale["Zip"])[0]
 
-        new_sale["Url"] = url
-        new_sale["Source"] = "Immoweb"
-        print("type et new_sale", type(new_sale), new_sale)
+            new_sale["Url"] = url
+            new_sale["Source"] = "Immoweb"
+            print(len(self.datas_immoweb, new_sale["Zip"]))
 
-        return pd.DataFrame(new_sale, index=[len(self.datas_immoweb.index)])
+            return pd.DataFrame(new_sale, index=[len(self.datas_immoweb.index)])
+        else :
+            print ("Errur 404", url)
 
     def loop_immo(self):
 
@@ -146,11 +149,11 @@ class Immoweb:
         self.datas_immoweb.to_csv(self.path_data_immoweb)
 
     def run(self):
-        self._generator_db_url()
+        # self._generator_db_url()
         # self._scan_page_list('https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&postalCodes=BE-1348')
-        #self._add_set_to_csv()
+        # self._add_set_to_csv()
         # self.scan_page_bien_immobilier('https://www.immoweb.be/fr/annonce/kot/a-vendre/bruxelles-ville/1000/9303884?searchId=60914b580d2b7')
-        self._save_set_to_csv()
+        # self._save_set_to_csv()
         self.driver.close()
         self.loop_immo()
         self.save_data_to_csv()
