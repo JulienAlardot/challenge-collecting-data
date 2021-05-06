@@ -24,6 +24,7 @@ __translator = Translator()
 __pattern = re.compile(r'/fr/vente/.+/.+/.+\.html')
 
 __zipcode_df = pd.read_csv(__zipcode_file)
+__translator = Translator()
 __headers = {
     # "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
     # "Accept-Encoding": "gzip, deflate",
@@ -59,10 +60,16 @@ def search_for_urls():
             found = False
             url = __root_url + f'/fr/vente/immo-a-vendre/{text}-{row["zipcode"]},{page},--------16776966-,---,---.html'
             response = requests.get(url, headers=__headers)
+
+            print(url, response.status_code, page, len(__addresses))
+            start = time.time()
+            delay = time.time() - start
             if response.status_code in (503, 500):
-                while response.status_code in (500, 503):
+                while response.status_code in (500, 503) and delay < 20*60:
                     response = requests.get(url)
+                    print(url, response.status_code, page, len(__addresses))
                     time.sleep(1)
+                    delay = time.time() - start
 
             buy_soup = bs4.BeautifulSoup(response.content, features="html.parser")
             for link in (f.get("href") for f in buy_soup.findAll("a")):
@@ -79,9 +86,16 @@ def search_for_urls():
 
                 response = requests.get(url, headers=__headers)
                 if response.status_code in (503, 500):
-                    while response.status_code in (500, 503):
+                    start = time.time()
+                    delay = time.time() - start
+                    while response.status_code in (500, 503) and delay < 2*60:
                         response = requests.get(url)
+                        print(url, response.status_code, page, len(__addresses))
                         time.sleep(1)
+                        delay = time.time() - start
+
+                if response.status_code in (503, 500):
+                    continue
                 buy_soup = bs4.BeautifulSoup(response.content, features="html.parser")
 
                 for link in (f.get("href") for f in buy_soup.findAll("a")):
@@ -89,8 +103,6 @@ def search_for_urls():
                         if re.search(__pattern, link):
                             found = True
                             __addresses.add(__root_url + link)
-
-            print(url, response.status_code, page, len(__addresses))
             # time.sleep(random.random()/4)
             page += 1
 
@@ -99,10 +111,6 @@ def search_for_urls():
                 with open(__logic_immo_url, 'wt+', newline='', encoding="utf-8") as url_file:
                     f_w = csv.writer(url_file)
                     f_w.writerows(([address] for address in sorted(__addresses)))
-
-    with open(__logic_immo_url, 'wt+', newline='', encoding="utf-8") as url_file:
-        f_w = csv.writer(url_file)
-        f_w.writerows(([address] for address in sorted(__addresses)))
 
 
 def search_raw_infos():
@@ -114,26 +122,28 @@ def search_raw_infos():
                 url = url[0]
                 try:
                     response = requests.get(url, headers=__headers)
-                    tries=0
+                    print(url, response.status_code, i)
+                    tries = 0
                     if response.status_code in (503, 500):
                         while response.status_code in (500, 503) and tries < 100:
                             response = requests.get(url)
+                            print(url, response.status_code, i)
                             time.sleep(1)
                             tries += 1
-                    print(url, response.status_code, i)
                 except:
                     try:
+                        time.sleep(60)
                         response = requests.get(url, headers=__headers)
+                        print(url, response.status_code, i)
                         tries = 0
                         if response.status_code in (503, 500):
                             while response.status_code in (500, 503) and tries < 100:
                                 response = requests.get(url)
+                                print(url, response.status_code, i)
                                 time.sleep(1)
                                 tries += 1
-                        print(url, response.status_code, i)
                     except:
                         continue
-
 
                 soup = bs4.BeautifulSoup(response.content, features="html.parser")
                 title = ''
@@ -144,16 +154,17 @@ def search_raw_infos():
                                                                                                                  '')
 
                 for element in soup.findAll('p', class_="js-description"):
-                    raw_desc = bs4utils.extract_text_from_tag(element).replace("\n", " ").replace('"', "").replace("'",
-                                                                                                                   '')
+                    raw_desc = bs4utils.extract_text_from_tag(element).replace("\n", " ").replace('"', "").replace("'", '')
                     # i = 0
-                    # while i < 100:
+                    # while i < 1:
                     #     try:
                     #         if __translator.detect(str(raw_desc))[0] != "fr":
                     #             raw_desc = str(__translator.translate(str(raw_desc), lang_tgt="fr"))
                     #         break
                     #     except:
+                    #         __translator = Translator()
                     #         i += 1
+
                     desc += raw_desc
                 for element in soup.findAll("ul", id="property-details-icons"):
                     for link in element.findAll("li", attrs={"data-toggle": 'tooltip'}):
@@ -250,7 +261,7 @@ def create_data_entry(datarow):
     pr = list()
     try:
         new_entry["Area"] = [int(datarow[1].split(".")[1].split(" m²")[0])]
-    except:
+    except IndexError:
         for element in datarow:
             m = re.search("surface ([0-9]+) m²", element.lower())
             pr.append((element, "Surface ([0-9]+) m²"))
