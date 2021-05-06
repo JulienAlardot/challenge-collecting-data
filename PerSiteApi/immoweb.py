@@ -117,8 +117,8 @@ class Immoweb:
             print("nbr biens: ", len(self.datas_immoweb), "CP :", new_sale["Zip"])
 
             return pd.DataFrame(new_sale, index=[len(self.datas_immoweb.index)])
-        else :
-            print ("Error 404", url)
+        else:
+            print("Error 404", url)
 
     def loop_immo(self):
 
@@ -129,7 +129,7 @@ class Immoweb:
                 new_sale = self.scan_page_bien_immobilier(url)
                 self.datas_immoweb = self.datas_immoweb.append(new_sale)
                 i += 1
-                sleep(0.2)
+                sleep(0.1)
             if i > max:
                 break
             if i % 100 == 0:
@@ -141,6 +141,8 @@ class Immoweb:
 
     def save_data_to_csv(self):
         self.datas_immoweb.to_csv(self.path_data_immoweb)
+        print("SAUVEGARDE A ", self.datas_immoweb.shape)
+        print(self.datas_immoweb.tail())
 
     def run(self):
         # self._generator_db_url()
