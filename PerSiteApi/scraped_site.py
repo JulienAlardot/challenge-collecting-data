@@ -1,6 +1,7 @@
 import csv
 import datetime
 import os
+from random import random
 
 from bs4 import BeautifulSoup
 
@@ -17,6 +18,8 @@ from time import sleep
 from typing import List, Dict
 import requests
 import json
+
+from PerSiteApi.headers import headers_list
 
 
 class ScrapedSite:
@@ -71,7 +74,11 @@ class ScrapedSite:
             "State of the building": ["property", "building", "condition"]
         }
         """
-        self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0'}
+        user_agent_desktop = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' \
+                             'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 ' \
+                             'blob/537.36'
+
+        self.headers = random.choice(headers_list)
         # self.driver = webdriver.Firefox()
 
     # retourne le milieu du texte entre les deux balises et le texte qui suit
@@ -185,7 +192,7 @@ class ScrapedSite:
         self.__url_postfix_fields__ = url_postfix_fields
         self.__search_pager__ = search_pager
         final_url = f"{self._site_url_}{url_postfix_category}{url_postfix_fields}{search_pager}"
-        search_url_list = [f"{final_url}{i}" for i in range(pages)]
+        search_url_list = [f"{final_url}{i}" for i in range(pages+1)]
         return search_url_list
 
     def _scan_page_list(self, url: str, num_pages: int = 1, pages=1) -> bool:
@@ -237,7 +244,7 @@ class ScrapedSite:
         if "http://validate.perfdrive.com/immovlan/captcha" in r.url:
             print("captchah")
             print(r.url)
-            exit(0)
+            r = requests.get(input("url ?"),headers = self.headers)
         soup = BeautifulSoup(r.content, 'lxml')
         for soup_links in soup.findAll('a'):
             link = soup_links.get("href")
@@ -283,7 +290,26 @@ class ScrapedSite:
 
 
 def scrape(item):
-    pass
+    item_url = __root_url + links
+    time.sleep(random() + 0.5)
+    r = requests.get(item_url, headers=headers)
+    soup = BeautifulSoup(r.content, 'lxml')
+    infos = soup.findAll("div", {"id": re.compile("^collapse.*$")})
+    for data_from_collapsed_section in infos:
+        """
+        #"collapse_general_info"
+        <div class="col-6">Etat du bien</div><div class="col-6 text-right">À rénover</div><div class="small-border w-100"></div>
+        data = {'First_Name': ['Jeff','Tina','Ben','Maria','Rob'],
+            'Last_Name':['Miller','Smith','Lee','Green','Carter'],
+            'Age':[33,42,29,28,57]
+                }
+            df = pd.DataFrame(data, columns = ['First_Name','Last_Name','Age'])
+        """
+        column_name = data_from_collapsed_section.find("div", {"class": re.compile("^col-[0-9]+$")})
+        value = data_from_collapsed_section.find("div", {"class": re.compile("^col-[0-9]+ text.*$")})
+        if column_name is not None:
+            if column_name not in list_column:
+                list_column.append(column_name.text.strip())
 
 
 if __name__ == "__main__":
