@@ -1,11 +1,18 @@
 # Collecting Data
 ## Description
 Small group project made at BeCode. The aim was to scrap real estate data from websites and create a Database
-of more than 10.000 houses for sale.
-Goal attemp by the groupe : 80k.
+of more than 10.000 houses for sale. This will be used later in the formation.
+Objective hoped by the groupe : 80k.
 
-## (Installation)
+## Installation
+Main packages used:
+- Selenium
+- Pandas
+- Json
+- Request
+- BeautifulSoup
 ## Usage
+To scrap real estate data from websites and create a Dataset
 ## (Visuals)
 ## Contributors
 The group working on this project is composed of:
