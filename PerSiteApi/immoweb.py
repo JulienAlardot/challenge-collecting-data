@@ -110,21 +110,19 @@ class Immoweb:
             json_immo = json.loads(texte)
 
             new_sale = self.json_to_dic(json_immo)
-            if new_sale["Zip"] is None:
-                zip = re.search(self.r_zip_code, url).group(0)
-                zip = zip[1:-1]
-                new_sale["Zip"] = int(zip)
-
-            if new_sale["Locality"] is None:
-                new_sale["Locality"] = DataStruct.get_locality(new_sale["Zip"])[0]
+            if new_sale["Zip"] is None or new_sale["Locality"] is None:
+                zip_locality = re.split("\/", url)
+                new_sale["Zip"] = zip_locality[8]
+                new_sale["Locality"] = zip_locality[7]
+                print(new_sale["Locality"], new_sale["Zip"])
 
             new_sale["Url"] = url
             new_sale["Source"] = "Immoweb"
-            print(len(self.datas_immoweb, new_sale["Zip"]))
+            print("nbr biens: ", len(self.datas_immoweb), "CP :" new_sale["Zip"])
 
             return pd.DataFrame(new_sale, index=[len(self.datas_immoweb.index)])
         else :
-            print ("Errur 404", url)
+            print ("Error 404", url)
 
     def loop_immo(self):
 
@@ -135,7 +133,7 @@ class Immoweb:
                 new_sale = self.scan_page_bien_immobilier(url)
                 self.datas_immoweb = self.datas_immoweb.append(new_sale)
                 i += 1
-                sleep(0.3)
+                sleep(0.2)
             if i > max:
                 break
             if i % 100 == 0:
