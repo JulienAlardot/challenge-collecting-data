@@ -33,7 +33,6 @@ class Immoweb:
         self.url_immo: set = set(s)
         s = pd.read_csv(self.path_clusters)["0"]
         self.url_cluster: set = set(s)
-        self.url_immo.union(self.url_cluster)
         self.datas_immoweb = pd.read_csv(self.path_data_immoweb, index_col=0)
 
         self.r_num_page = re.compile("\d{1,3}$")
@@ -99,6 +98,51 @@ class Immoweb:
             new_sale[key] = element
         return new_sale
 
+    def _loop_cluster(self):
+        s_url_appart = self.datas_immoweb[self.datas_immoweb["Url"] == "APARTMENT_GROUP"]
+        for url_cluster in s_url_appart:
+            zip_locality = re.split("/", url_cluster)
+            zip = zip_locality[8]
+            locality = zip_locality[7]
+
+            print(url)
+            page = requests.get(url)
+            texte = page.text
+            base_url = "https://www.immoweb.be/fr/annonce/appartement/a-vendre/" + locality + "/" + zip + "/"
+
+            if "accordion--cluster" in texte:  # If it's a cluster
+                url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
+                code_immo = re.search("\d*$")
+                url = base_url + code_immo
+                self.scan_page_bien_immobilier(url)
+                while "classified__list-item-link" in suite:
+                    url, suite = self.coupepage(suite, '<a class="classified__list-item-link" href="', '">')
+                    code_immo = re.search("\d*$")
+                    url = base_url + code_immo
+                    self.scan_page_bien_immobilier(url)
+
+        s_url_maison = self.datas_immoweb[self.datas_immoweb["Url"] == "HOUSE_GROUP"]
+        for url_cluster in s_url_maison:
+            zip_locality = re.split("/", url_cluster)
+            zip = zip_locality[8]
+            locality = zip_locality[7]
+
+            print(url)
+            page = requests.get(url)
+            texte = page.text
+            base_url = "https://www.immoweb.be/fr/annonce/maison/a-vendre/" + locality + "/" + zip + "/"
+
+            if "accordion--cluster" in texte:  # If it's a cluster
+                url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
+                code_immo = re.search("\d*$")
+                url = base_url + code_immo
+                self.scan_page_bien_immobilier(url)
+                while "classified__list-item-link" in suite:
+                    url, suite = self.coupepage(suite, '<a class="classified__list-item-link" href="', '">')
+                    code_immo = re.search("\d*$")
+                    url = base_url + code_immo
+                    self.scan_page_bien_immobilier(url)
+
     def scan_page_bien_immobilier(self, url: str):
         print(url)
         page = requests.get(url)
@@ -143,7 +187,7 @@ class Immoweb:
             try:
                 new_sale = self.scan_page_bien_immobilier(url)
             except Exception as excep:
-                print(excep)
+                print(i, excep)
                 self._save_clusters()
             else:
                 self.datas_immoweb = self.datas_immoweb.append(new_sale)
