@@ -1,3 +1,6 @@
+import time
+from random import random
+
 import requests
 from bs4 import BeautifulSoup
 import os
@@ -19,7 +22,7 @@ other_url = 'https://immo.vlan.be/fr/immobilier?propertytypes=appartement,maison
             'parking,garage,maison-de-rapport,kot-etudiant,bien-divers&countries=belgique&noindex=1'
 user_agent_desktop = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' \
                      'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 ' \
-                     'Safiri/537.36'
+                     'blob/537.36'
 
 url_page_offset = '&pageOffset='
 
@@ -58,7 +61,7 @@ nb_of_rows = 0
 with open(__vlan_url, 'a+') as url_file:
     with open(__vlan_link, 'w+') as url_index_file:
         with open(__vlan_data, 'w+') as url_data_file:
-            for offset in range(1, 168):
+            for offset in range(1, 11): #168
                 link_list = []
                 offset_url = other_url + url_page_offset + str(offset)
                 r = requests.get(offset_url,
@@ -78,6 +81,7 @@ with open(__vlan_url, 'a+') as url_file:
                     url_file.write(links)
                     url_file.write("\n")
                     item_url = __root_url + links
+                    time.sleep(random() + 0.5)
                     r = requests.get(item_url, headers=headers)
                     soup = BeautifulSoup(r.content, 'lxml')
                     infos = soup.findAll("div", {"id": re.compile("^collapse.*$")})
