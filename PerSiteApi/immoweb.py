@@ -130,26 +130,29 @@ class Immoweb:
             print("Error 404", url)
 
     def loop_immo(self):
-        i, passed = 0, 0
+        i, passed = 1, 0
         max = 175000
+
+        print(len(self.url_immo))
+        for x in self.datas_immoweb.Url:
+            self.url_immo.discard(x)
+        print(len(self.url_immo))
+
         for url in self.url_immo:
-            if self.datas_immoweb["Url"].str.find(url) is -1:
-                passed += 1
-                print("passed :", passed, url, i)
+
+            try:
+                new_sale = self.scan_page_bien_immobilier(url)
+            except Exception as excep:
+                print(excep)
+                self._save_clusters()
             else:
-                try:
-                    new_sale = self.scan_page_bien_immobilier(url)
-                except Exception as excep:
-                    print(excep)
-                    self._save_set_to_csv()
-                else:
-                    self.datas_immoweb = self.datas_immoweb.append(new_sale)
-                i += 1
+                self.datas_immoweb = self.datas_immoweb.append(new_sale)
+            i += 1
+
             if i > max:
                 break
             if i % 100 == 0:
                 self.save_data_to_csv()
-                sleep(0.5)
 
         print(type(self.datas_immoweb), self.datas_immoweb)
         self.save_data_to_csv()
@@ -176,13 +179,15 @@ class Immoweb:
             df = pd.DataFrame(self.url_results_search)
             df.to_csv(file)
 
+    def _save_clusters(self):
+        with open(self.path_clusters, 'w') as file:
+            df = pd.DataFrame(self.url_cluster)
+            df.to_csv(file)
+
+    def _save_url_immo(self):
         # self.clean_url_immo()
         with open(self.path_immo, "w") as file:
             df = pd.DataFrame(self.url_immo)
-            df.to_csv(file)
-
-        with open(self.path_clusters, 'w') as file:
-            df = pd.DataFrame(self.url_cluster)
             df.to_csv(file)
 
     def clean_url_immo(self):
