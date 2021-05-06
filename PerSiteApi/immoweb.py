@@ -1,4 +1,3 @@
-import csv
 import os
 
 from Core.datautils import DataStruct
@@ -6,9 +5,6 @@ import re
 import pandas as pd
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 
 from time import sleep
 from typing import List, Dict
@@ -111,14 +107,14 @@ class Immoweb:
 
             new_sale = self.json_to_dic(json_immo)
             if new_sale["Zip"] is None or new_sale["Locality"] is None:
-                zip_locality = re.split("\/", url)
+                zip_locality = re.split("/", url)
                 new_sale["Zip"] = zip_locality[8]
                 new_sale["Locality"] = zip_locality[7]
                 print(new_sale["Locality"], new_sale["Zip"])
 
             new_sale["Url"] = url
             new_sale["Source"] = "Immoweb"
-            print("nbr biens: ", len(self.datas_immoweb), "CP :" new_sale["Zip"])
+            print("nbr biens: ", len(self.datas_immoweb), "CP :", new_sale["Zip"])
 
             return pd.DataFrame(new_sale, index=[len(self.datas_immoweb.index)])
         else :
