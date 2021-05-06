@@ -11,7 +11,6 @@ from typing import List, Dict
 import requests
 import json
 
-
 class Immoweb:
 
     def __init__(self):
@@ -105,7 +104,7 @@ class Immoweb:
         page = requests.get(url)
         texte = page.text
 
-        if "accordion--cluster" in texte:
+        if "accordion--cluster" in texte:  # If it's a cluster
             url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
             self.url_cluster.add(url)
             i = 2
@@ -114,28 +113,30 @@ class Immoweb:
                 self.url_cluster.add(url)
                 i += 1
             raise Exception(i, "clusters", url)
-        elif "404 not found" not in texte:
+        elif "404 not found" not in texte:  # Then
             texte, suite = self.coupepage(texte, "window.classified = ", "};")
             texte += "}"
             json_immo = json.loads(texte)
             new_sale = self.json_to_dic(json_immo)
-            if new_sale["Zip"] is None or new_sale["Locality"] is None:
-                zip_locality = re.split("/", url)
-                new_sale["Zip"] = zip_locality[8]
-                new_sale["Locality"] = zip_locality[7]
-                print(new_sale["Locality"], new_sale["Zip"])
+
+            zip_locality = re.split("/", url)
+            new_sale["Zip"] = zip_locality[8]
+            new_sale["Locality"] = zip_locality[7]
             new_sale["Url"] = url
             new_sale["Source"] = "Immoweb"
-            print("nbr biens: ", len(self.datas_immoweb), "CP :", new_sale["Zip"])
+            print("nbr biens: ", len(self.datas_immoweb), "CP :", new_sale["Zip"], "len", len(self.url_immo))
             return pd.DataFrame(new_sale, index=[len(self.datas_immoweb.index)])
-        else:
+        else:  # If it's error 404
             print("Error 404", url)
 
     def loop_immo(self):
-        i = 0
-        max = 75000
+        i, passed = 0, 0
+        max = 175000
         for url in self.url_immo:
-            if url not in self.datas_immoweb["Url"]:
+            if self.datas_immoweb["Url"].str.find(url) is -1:
+                passed += 1
+                print("passed :", passed, url, i)
+            else:
                 try:
                     new_sale = self.scan_page_bien_immobilier(url)
                 except Exception as excep:
@@ -155,7 +156,7 @@ class Immoweb:
 
     def save_data_to_csv(self):
         self.datas_immoweb.to_csv(self.path_data_immoweb)
-        print("SAUVEGARDE A ", self.datas_immoweb.shape)
+        print("SAUVEGARDE A ", self.datas_immoweb.shape, "len", len(self.url_immo))
         print(self.datas_immoweb.tail())
 
     def run(self):
