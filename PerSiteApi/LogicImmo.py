@@ -2,14 +2,13 @@ import csv
 import os
 import re
 import time
-from functools import reduce
-from google_trans_new import google_translator as Translator
+
 import bs4
 import pandas as pd
 import requests
+from google_trans_new import google_translator as Translator
 
 from Core import bs4utils, datautils
-
 __per_site_api_path = os.path.dirname(__file__)
 __root_path = os.path.dirname(__per_site_api_path)
 __core_path = os.path.join(__root_path, "Core")
@@ -21,7 +20,6 @@ __logic_immo_raw_data = os.path.join(__data_path, "logic_immo_raw_data.csv")
 __logic_immo_data = os.path.join(__data_path, "logic_immo_clean_data.csv")
 __root_url = r"https://www.logic-immo.be"
 __addresses = set()
-__pattern = re.compile(r'/fr/vente/.+/[a-zA-Z]+-[0-9]+/.+.html')
 __translator = Translator()
 __pattern = re.compile(r'/fr/vente/.+/.+/.+\.html')
 
@@ -43,7 +41,12 @@ __headers = {
     # "X-Amzn-Trace-Id": "Root=1-5ee7bae0-82260c065baf5ad7f0b3a3e3"
 }
 
-
+__patterns = {
+    "cuisine": re.compile(r"(pas|sans|avec)? ?[a-z]* ?cuisine( ?[a-z]+ ?-?)?[ée]qu"),
+    "cuisine2": re.compile("(sans|non|semi-é|semi é|partiellement)"),
+    "cuisine3": re.compile(r"(ingerichte|uitgeruste) keuk"),
+    "cuisine4": re.compile(r"keuk(en)? ?(is)? ?(ingericht|uitgerust)")
+}
 def search_for_urls():
     old_len_address = 0
     for i, row in __zipcode_df.iterrows():
@@ -56,10 +59,6 @@ def search_for_urls():
             found = False
             url = __root_url + f'/fr/vente/immo-a-vendre/{text}-{row["zipcode"]},{page},--------16776966-,---,---.html'
             response = requests.get(url, headers=__headers)
-            if response.status_code == 500 or response.status_code == 503:
-                while response.status_code == 500 or response.status_code == 503:
-                    response = requests.get(url)
-                    time.sleep(1)
             if response.status_code in (503, 500):
                 while response.status_code in (500, 503):
                     response = requests.get(url)
@@ -101,20 +100,40 @@ def search_for_urls():
                     f_w = csv.writer(url_file)
                     f_w.writerows(([address] for address in sorted(__addresses)))
 
+    with open(__logic_immo_url, 'wt+', newline='', encoding="utf-8") as url_file:
+        f_w = csv.writer(url_file)
+        f_w.writerows(([address] for address in sorted(__addresses)))
+
 
 def search_raw_infos():
     with open(__logic_immo_url, "rt", encoding='utf-8') as url_file:
         with open(__logic_immo_raw_data, "w+", encoding="utf-8", newline="") as text_file:
             f_r = csv.reader(url_file)
             f_w = csv.writer(text_file)
-            for url in f_r:
+            for i, url in enumerate(f_r):
                 url = url[0]
-                response = requests.get(url, headers=__headers)
-                if response.status_code in (503, 500):
-                    while response.status_code in (500, 503):
-                        response = requests.get(url)
-                        time.sleep(1)
-                print((url, response.status_code))
+                try:
+                    response = requests.get(url, headers=__headers)
+                    tries=0
+                    if response.status_code in (503, 500):
+                        while response.status_code in (500, 503) and tries < 100:
+                            response = requests.get(url)
+                            time.sleep(1)
+                            tries += 1
+                    print(url, response.status_code, i)
+                except:
+                    try:
+                        response = requests.get(url, headers=__headers)
+                        tries = 0
+                        if response.status_code in (503, 500):
+                            while response.status_code in (500, 503) and tries < 100:
+                                response = requests.get(url)
+                                time.sleep(1)
+                                tries += 1
+                        print(url, response.status_code, i)
+                    except:
+                        continue
+
 
                 soup = bs4.BeautifulSoup(response.content, features="html.parser")
                 title = ''
@@ -125,16 +144,17 @@ def search_raw_infos():
                                                                                                                  '')
 
                 for element in soup.findAll('p', class_="js-description"):
-                    raw_desc = bs4utils.extract_text_from_tag(element).replace("\n", " ").replace('"', "").replace("'", '')
-                    while True:
-                        try:
-                            if __translator.detect(str(raw_desc))[0] != "fr":
-                                raw_desc = str(__translator.translate(str(raw_desc), lang_tgt="fr"))
-                            desc += raw_desc
-                            break
-                        except:
-                            print("Translation failed, retrying")
-                            time.sleep(0.2)
+                    raw_desc = bs4utils.extract_text_from_tag(element).replace("\n", " ").replace('"', "").replace("'",
+                                                                                                                   '')
+                    # i = 0
+                    # while i < 100:
+                    #     try:
+                    #         if __translator.detect(str(raw_desc))[0] != "fr":
+                    #             raw_desc = str(__translator.translate(str(raw_desc), lang_tgt="fr"))
+                    #         break
+                    #     except:
+                    #         i += 1
+                    desc += raw_desc
                 for element in soup.findAll("ul", id="property-details-icons"):
                     for link in element.findAll("li", attrs={"data-toggle": 'tooltip'}):
                         icons += link.get("title") + bs4utils.extract_text_from_tag(link).replace("\n", " ") + ','
@@ -178,39 +198,59 @@ def create_data_entry(datarow):
         subtype = re.search('[0-9]{4}/([a-zA-Z]+)-[0-9]*', text)
         if subtype:
             new_entry["Subtype of property"] = subtype.groups()[0]
-
     datarow[1] = " ".join(bs4.UnicodeDammit(datarow[1]).unicode_markup.split())
     match_price = re.search("([0-9]{0,3}) ?([0-9]{0,3}) ?([0-9]{1,3}) ?0?€", datarow[1])
     price = 0
     if match_price:
         for i, group in enumerate(match_price.groups()[::-1]):
             if group != "":
-                price += (1000**i) * int(group)
+                price += (1000 ** i) * int(group)
     new_entry["Price"] = [price]
     new_entry["Fully equipped kitchen"] = [False]
     for element in datarow:
-        kitchen_all_match = re.search(r"(pas|sans|avec)? ?(de|une)? ?cuisine ([a-zA-Z\- ]*)* ?équipé", element.lower())
+        kitchen_all_match = re.search(__patterns["cuisine"], element.lower())
         if kitchen_all_match:
             for group in kitchen_all_match.groups():
                 if group:
-                    kitchen_bad_match = re.search("(sans|non|semi-é|semi é|partiellement)", group)
+                    kitchen_bad_match = re.search(__patterns["cuisine2"], group)
                     if kitchen_bad_match:
                         break
                     else:
                         new_entry["Fully equipped kitchen"] = [True]
+        if not new_entry["Fully equipped kitchen"].values[0]:
+            kitchen_match = re.match(__patterns["cuisine3"], element.lower())
+            if kitchen_match:
+                new_entry["Fully equipped kitchen"] = [True]
+            else:
+                kitchen_match = re.match(__patterns["cuisine4"], element.lower())
+                if kitchen_match:
+                    new_entry["Fully equipped kitchen"] = [True]
+
 
     new_entry["Furnished"] = [False]
     for element in datarow:
-        furnished_all_match = re.search("(avec|sans|partiellement|sur)? ?[^m]+(meublé|meuble)}", element.lower())
+        furnished_all_match = re.search("(sans)? ?(meublé| meuble|gemeubileerde) ?([a-zA-Z]*)", element.lower())
         if furnished_all_match:
-            print(furnished_all_match)
-
+            print((furnished_all_match,
+                   element[max(0, furnished_all_match.start() - 30):min(len(element), furnished_all_match.end() +30)]))
+            if "sans" in furnished_all_match.groups():
+                continue
+            elif "évier" in furnished_all_match.groups():
+                continue
+            new_entry["Furnished"] = [True]
+    new_entry["Swimming pool"] = [False]
+    for element in datarow:
+        swimmingpool = re.match(r"piscine|zwembad", element.lower())
+        if swimmingpool:
+            print(element)
+            new_entry["Swimming pool"] = [True]
+            break
 
     new_entry["Area"] = [0]
     pr = list()
     try:
         new_entry["Area"] = [int(datarow[1].split(".")[1].split(" m²")[0])]
-    except IndexError:
+    except:
         for element in datarow:
             m = re.search("surface ([0-9]+) m²", element.lower())
             pr.append((element, "Surface ([0-9]+) m²"))
@@ -243,25 +283,123 @@ def create_data_entry(datarow):
                 if m:
                     new_entry["Area"] = [int(m.groups()[0])]
                     break
-        # if new_entry["Area"].values[0] == 0:
-        #     print(pr)
+
+    new_entry["State of the building"] = ["no mention"]
+    for element in datarow:
+        state_match = re.search("[a|à]? ?(neuf|contemporain|moderne|vétuste|neuve|neuw|rénnover|rénover|rénnové|rénové)", element.lower())
+        if state_match:
+            print((state_match, element[max(0,state_match.start()-30):min(len(element), state_match.end()+30)]))
+            for group in state_match.groups():
+                new_entries = ("neuf", "neuw", "neuve", "rénnové", "rénové", "contemporain")
+                for entry in new_entries:
+                    if group.find(entry) != -1:
+                        new_entry["State of the building"] = ["new"]
+                        break
+
+                if new_entry["State of the building"].values[0] == "no mention":
+                    renovate_entries = ("rénnover","rénover", "vétuste")
+                    for entry in renovate_entries:
+                        if group.find(entry) != -1:
+                            new_entry["State of the building"] = ["to renovate"]
+                            break
+                    if new_entry["State of the building"].values[0] != "no mention":
+                        break
+
+    new_entry["Open fire"] = [False]
+    for element in datarow:
+        state_match = re.search("(feu ouvert|open haard)", element.lower())
+        if state_match:
+            print((state_match, element[max(0,state_match.start()-30):min(len(element),state_match.end()+30)]))
+            new_entry["Open fire"] = [True]
+
+    new_entry["Terrace"] = [False]
+    new_entry["Terrace Area"] = [0]
+    for element in datarow[::-1]:
+        state_match = re.search("(terasse|terras) ?.* ([0-9]+) ?m²", element.lower())
+        if state_match:
+            new_entry["Terrace"] = [True]
+            new_entry["Terrace Area"] = int(state_match.groups()[-1])
+        if new_entry["Terrace"].values[0]:
+            break
+
+    new_entry["Garden"] = [False]
+    new_entry["Garden Area"] = [0]
+    for element in datarow[::-1]:
+        state_match = re.search("(jardin|tuin) ?[a-zA-Z ]* ([0-9.]+) ?(m²|are)", element.lower())
+        if state_match:
+            print((state_match, element[max(0,state_match.start()-30):min(len(element),state_match.end()+30)]))
+            new_entry["Garden"] = [True]
+            area = float(state_match.groups()[-2])
+            if state_match.groups()[-1] == 'are':
+                area = area * 100
+            new_entry["Garden Area"] = int(area)
+        if new_entry["Garden"].values[0]:
+            break
+
+    new_entry["Number of rooms"] = [0]
+    for element in datarow[::-1]:
+        state_match = re.search("([0-9]+) ?(chambre|kamer|slaapkamer)", element.lower())
+        if state_match:
+            print((state_match, element[max(0, state_match.start()-30):min(len(element),state_match.end()+30)]))
+            new_entry["Number of rooms"] = int(state_match.groups()[0])
+        if new_entry["Number of rooms"].values[0] > 0:
+            break
+
+    new_entry["Surface of the land"] = [0]
+    for element in datarow[::-1]:
+        state_match = re.search("(surface)? ?(du)? ?terrain ?(de)? ?([0-9.]+) ?(m²|are)", element.lower())
+        if state_match:
+            print((state_match, element[max(0, state_match.start()-30):min(len(element), state_match.end()+30)]))
+            area = float(state_match.groups()[-2])
+            if state_match.groups()[-1] == 'are':
+                area = area * 100
+            new_entry["Surface of the land"] = int(area)
+        if new_entry["Surface of the land"].values[0] > 0:
+            break
+
+    if new_entry["Surface of the land"].values[0] == 0:
+        new_entry["Surface of the land"] = new_entry["Garden Area"]
+    new_entry["Surface area of the plot of land"] = new_entry["Surface of the land"]
+
+    new_entry["Number of facades"] = [0]
+    for element in datarow[::-1]:
+        state_match = re.search("([0-9]+) ?(façade|facade)", element.lower())
+        if state_match:
+            print((state_match, element[max(0, state_match.start()-30):min(len(element), state_match.end()+30)]))
+            new_entry["Number of facades"] = int(state_match.groups()[0])
+        if new_entry["Number of facades"].values[0] > 0:
+            break
+
+    if new_entry["Number of facades"].values[0]:
+        facades = 0
+        if new_entry["Subtype of property"].values[0] == "penthouse":
+            facades = 4
+        new_entry["Number of facades"] = facades
+
     return new_entry
 
 
 def create_data_csv():
     with open(__logic_immo_raw_data, "rt", encoding="utf-8") as data_file:
-        with open(__logic_immo_data, "w+", encoding="utf-8") as data_final_file:
-            f_r = csv.reader(data_file)
-            data = datautils.DataStruct.DATAFRAMETEMPLATE
-            for line in f_r:
-                pd.options.display.max_columns = 30
-                data = data.append(create_data_entry(line), ignore_index=True)
+        f_r = csv.reader(data_file)
+        data = datautils.DataStruct.DATAFRAMETEMPLATE
+        last_data_len = 0
+        for line in f_r:
+            if not line[1]:
+                continue
+            data = data.append(create_data_entry(line), ignore_index=True)
+            print(data.shape)
+            if data.shape[0] > last_data_len + 100:
+                last_data_len = data.shape[0]
+                data["Id"] = data.index
+                data.set_index("Id").to_csv(__logic_immo_data, mode="w+")
 
-            data.dropna(how="any", subset=["Subtype of property"], inplace=True)
-            data.to_csv(data_final_file)
+        data.dropna(how="any", subset=["Type of property"], inplace=True)
+        data["Id"] = data.index
+        data.set_index("Id").to_csv(__logic_immo_data, mode="w+")
 
 
 if __name__ == "__main__":
     # search_for_urls()
-    search_raw_infos()
+    # search_raw_infos()
     create_data_csv()
