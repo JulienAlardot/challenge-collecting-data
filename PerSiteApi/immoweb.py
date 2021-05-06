@@ -28,15 +28,15 @@ class Immoweb:
         self.path_data_immoweb = os.path.join(self._data_immoweb_path, "datas_immoweb.csv")
 
         s = pd.read_csv(self.path_results_search)["0"]
-        self.url_results_search = set(s)
+        self.url_results_search: set = set(s)
         s = pd.read_csv(self.path_immo)["0"]
-        self.url_immo = set(s)
+        self.url_immo: set = set(s)
         self.datas_immoweb = pd.read_csv(self.path_data_immoweb, index_col=0)
 
         self.r_num_page = re.compile("\d{1,3}$")
         self.r_zip_code = re.compile("/\d{4}/")
 
-        self.url_vente = "https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-"
+        self.url_vente: str = "https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-"
         self.immo_path: Dict = {
             "Zip": ["customers", "location","postalCode"],
             "Locality": ["customers", "location", 'locality'],
@@ -96,40 +96,48 @@ class Immoweb:
             new_sale[key] = element
         return new_sale
 
-    def scan_page_bien_immobilier(self, url: str) -> Dict:
+    def scan_page_bien_immobilier(self, url: str):
         print(url)
         page = requests.get(url)
         texte = page.text
-        if "404 not found" not in texte :
+
+        if "accordion--cluster" in texte:
+            url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
+            self.url_immo.add(url)
+            while "classified__list-item-link" in suite:
+                url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
+                self.url_immo.add(url)
+            raise Exception("cluster ", url)
+        elif "404 not found" not in texte:
             texte, suite = self.coupepage(texte, "window.classified = ", "};")
             texte += "}"
             json_immo = json.loads(texte)
-
             new_sale = self.json_to_dic(json_immo)
             if new_sale["Zip"] is None or new_sale["Locality"] is None:
                 zip_locality = re.split("/", url)
                 new_sale["Zip"] = zip_locality[8]
                 new_sale["Locality"] = zip_locality[7]
                 print(new_sale["Locality"], new_sale["Zip"])
-
             new_sale["Url"] = url
             new_sale["Source"] = "Immoweb"
             print("nbr biens: ", len(self.datas_immoweb), "CP :", new_sale["Zip"])
-
             return pd.DataFrame(new_sale, index=[len(self.datas_immoweb.index)])
         else:
             print("Error 404", url)
 
     def loop_immo(self):
-
         i = 0
         max = 75000
         for url in self.url_immo:
             if url not in self.datas_immoweb["Url"]:
-                new_sale = self.scan_page_bien_immobilier(url)
-                self.datas_immoweb = self.datas_immoweb.append(new_sale)
+                try:
+                    new_sale = self.scan_page_bien_immobilier(url)
+                except Exception as excep:
+                    print(excep)
+                    self._save_set_to_csv()
+                else:
+                    self.datas_immoweb = self.datas_immoweb.append(new_sale)
                 i += 1
-                sleep(0.1)
             if i > max:
                 break
             if i % 100 == 0:
