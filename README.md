@@ -39,4 +39,6 @@ I couldn't get past the captcha after trying with rotating headers, using seleni
 
 ## Timeline
 From Monday 3 May to 6 May 2021
-## (Personal situation)
+
+## How to use
+Run the Core.database_gen.load_database() to get the final database (the file is database.csv under Data)
