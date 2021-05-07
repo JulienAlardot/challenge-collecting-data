@@ -11,7 +11,6 @@ from typing import List, Dict
 import requests
 import json
 
-
 class Immoweb:
 
     def __init__(self):
@@ -34,7 +33,6 @@ class Immoweb:
         self.url_immo: set = set(s)
         s = pd.read_csv(self.path_clusters)["0"]
         self.url_cluster: set = set(s)
-        self.url_immo.union(self.url_cluster)
         self.datas_immoweb = pd.read_csv(self.path_data_immoweb, index_col=0)
 
         self.r_num_page = re.compile("\d{1,3}$")
@@ -100,12 +98,57 @@ class Immoweb:
             new_sale[key] = element
         return new_sale
 
+    def _loop_cluster(self):
+        s_url_appart = self.datas_immoweb[self.datas_immoweb["Url"] == "APARTMENT_GROUP"]
+        for url_cluster in s_url_appart:
+            zip_locality = re.split("/", url_cluster)
+            zip = zip_locality[8]
+            locality = zip_locality[7]
+
+            print(url)
+            page = requests.get(url)
+            texte = page.text
+            base_url = "https://www.immoweb.be/fr/annonce/appartement/a-vendre/" + locality + "/" + zip + "/"
+
+            if "accordion--cluster" in texte:  # If it's a cluster
+                url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
+                code_immo = re.search("\d*$")
+                url = base_url + code_immo
+                self.scan_page_bien_immobilier(url)
+                while "classified__list-item-link" in suite:
+                    url, suite = self.coupepage(suite, '<a class="classified__list-item-link" href="', '">')
+                    code_immo = re.search("\d*$")
+                    url = base_url + code_immo
+                    self.scan_page_bien_immobilier(url)
+
+        s_url_maison = self.datas_immoweb[self.datas_immoweb["Url"] == "HOUSE_GROUP"]
+        for url_cluster in s_url_maison:
+            zip_locality = re.split("/", url_cluster)
+            zip = zip_locality[8]
+            locality = zip_locality[7]
+
+            print(url)
+            page = requests.get(url)
+            texte = page.text
+            base_url = "https://www.immoweb.be/fr/annonce/maison/a-vendre/" + locality + "/" + zip + "/"
+
+            if "accordion--cluster" in texte:  # If it's a cluster
+                url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
+                code_immo = re.search("\d*$")
+                url = base_url + code_immo
+                self.scan_page_bien_immobilier(url)
+                while "classified__list-item-link" in suite:
+                    url, suite = self.coupepage(suite, '<a class="classified__list-item-link" href="', '">')
+                    code_immo = re.search("\d*$")
+                    url = base_url + code_immo
+                    self.scan_page_bien_immobilier(url)
+
     def scan_page_bien_immobilier(self, url: str):
         print(url)
         page = requests.get(url)
         texte = page.text
 
-        if "accordion--cluster" in texte:
+        if "accordion--cluster" in texte:  # If it's a cluster
             url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
             self.url_cluster.add(url)
             i = 2
@@ -114,48 +157,53 @@ class Immoweb:
                 self.url_cluster.add(url)
                 i += 1
             raise Exception(i, "clusters", url)
-        elif "404 not found" not in texte:
+        elif "404 not found" not in texte:  # Then
             texte, suite = self.coupepage(texte, "window.classified = ", "};")
             texte += "}"
             json_immo = json.loads(texte)
             new_sale = self.json_to_dic(json_immo)
-            if new_sale["Zip"] is None or new_sale["Locality"] is None:
-                zip_locality = re.split("/", url)
-                new_sale["Zip"] = zip_locality[8]
-                new_sale["Locality"] = zip_locality[7]
-                print(new_sale["Locality"], new_sale["Zip"])
+
+            zip_locality = re.split("/", url)
+            new_sale["Zip"] = zip_locality[8]
+            new_sale["Locality"] = zip_locality[7]
             new_sale["Url"] = url
             new_sale["Source"] = "Immoweb"
-            print("nbr biens: ", len(self.datas_immoweb), "CP :", new_sale["Zip"])
+            print("nbr biens: ", len(self.datas_immoweb), "CP :", new_sale["Zip"], "len", len(self.url_immo))
             return pd.DataFrame(new_sale, index=[len(self.datas_immoweb.index)])
-        else:
+        else:  # If it's error 404
             print("Error 404", url)
 
     def loop_immo(self):
-        i = 0
-        max = 75000
+        i, passed = 1, 0
+        max = 175000
+
+        print(len(self.url_immo))
+        for x in self.datas_immoweb.Url:
+            self.url_immo.discard(x)
+        print(len(self.url_immo))
+
         for url in self.url_immo:
-            if url not in self.datas_immoweb["Url"]:
-                try:
-                    new_sale = self.scan_page_bien_immobilier(url)
-                except Exception as excep:
-                    print(excep)
-                    self._save_set_to_csv()
-                else:
-                    self.datas_immoweb = self.datas_immoweb.append(new_sale)
-                i += 1
+
+            try:
+                new_sale = self.scan_page_bien_immobilier(url)
+            except Exception as excep:
+                print(i, excep)
+                self._save_clusters()
+            else:
+                self.datas_immoweb = self.datas_immoweb.append(new_sale)
+            i += 1
+
             if i > max:
                 break
             if i % 100 == 0:
                 self.save_data_to_csv()
-                sleep(0.5)
 
         print(type(self.datas_immoweb), self.datas_immoweb)
         self.save_data_to_csv()
 
     def save_data_to_csv(self):
         self.datas_immoweb.to_csv(self.path_data_immoweb)
-        print("SAUVEGARDE A ", self.datas_immoweb.shape)
+        print("SAUVEGARDE A ", self.datas_immoweb.shape, "len", len(self.url_immo))
         print(self.datas_immoweb.tail())
 
     def run(self):
@@ -175,13 +223,15 @@ class Immoweb:
             df = pd.DataFrame(self.url_results_search)
             df.to_csv(file)
 
+    def _save_clusters(self):
+        with open(self.path_clusters, 'w') as file:
+            df = pd.DataFrame(self.url_cluster)
+            df.to_csv(file)
+
+    def _save_url_immo(self):
         # self.clean_url_immo()
         with open(self.path_immo, "w") as file:
             df = pd.DataFrame(self.url_immo)
-            df.to_csv(file)
-
-        with open(self.path_clusters, 'w') as file:
-            df = pd.DataFrame(self.url_cluster)
             df.to_csv(file)
 
     def clean_url_immo(self):
