@@ -1,3 +1,4 @@
+
 # Collecting Data
 ## Description
 Small group project made at BeCode. The aim was to scrap real estate data from websites and create a Database
@@ -13,7 +14,13 @@ Main packages used:
 - BeautifulSoup
 ## Usage
 To scrap real estate data from websites and create a Dataset
-## (Visuals)
+## Visuals
+
+![Data Columns](https://user-images.githubusercontent.com/77900800/117432179-98f26e00-af19-11eb-85bd-b91290e7f758.png)
+
+![Data Distribution](https://user-images.githubusercontent.com/77900800/117432020-66e10c00-af19-11eb-8ca1-cb12801571c5.png)
+
+
 ## Contributors
 The group working on this project is composed of:
 - [Alain Tiri](https://github.com/AlainTiri)
