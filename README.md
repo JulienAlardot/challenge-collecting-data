@@ -14,6 +14,12 @@ Main packages used:
 ## Usage
 To scrap real estate data from websites and create a Dataset
 ## (Visuals)
+
+- [@AlainTiri
+AlainTiri]
+  
+(https://github.com/JulienAlardot/challenge-collecting-data/commit/7eeab0aa76a76a9388a7561a16826e61a16ddf5b)
+
 ## Contributors
 The group working on this project is composed of:
 - [Alain Tiri](https://github.com/AlainTiri)
