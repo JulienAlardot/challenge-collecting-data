@@ -55,8 +55,9 @@ def search_for_urls():
 
     try:
         print("Trying to load existing URLs")
-        with open(__logic_immo_url, "rt", encoding="utf-8") as f_r:
-            __addresses = set([*f_r])
+        with open(__logic_immo_url, "rt", encoding="utf-8") as file_url:
+            f_r = csv.reader(file_url)
+            __addresses = set([line[0] for line in f_r])
         print(f"success, size = {len(__addresses)}")
     except FileNotFoundError:
         print("Failed")
