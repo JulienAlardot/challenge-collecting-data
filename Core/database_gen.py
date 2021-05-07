@@ -59,7 +59,12 @@ def convert_datatypes(df):
         "castle",
         "pavilion",
     )
-    df["Source"] = pd.Categorical(df["Source"])
+    # df["Source"] = pd.Categorical(df["Source"])
+    # for column in df.columns:
+    #     print(column, df[column].unique())
+
+
+
     df["Type of property"] = pd.Categorical(
         df["Type of property"], categories=("apartment", "house"), ordered=True
     )
@@ -220,15 +225,15 @@ def create_database():
     ] = "good"
     df.loc[df["State of the building"] == "as_new", "State of the building"] = "good"
     df.loc[df["Terrace"] == "true", "Terrace"] = 1
-    df = df[np.logical_or(df["Surface of the land"] >= 0, df["Surface of the land"] == np.nan)]
-    df["Surface area of the land"] = df["Surface of the land"]
-    df = df[np.logical_or(df["Surface of the land"] >= 0, df["Surface of the land"] == np.nan)]
+    # df = df[np.logical_or(df["Surface of the land"] >= 0, df["Surface of the land"] == np.nan)]
+    df["Surface of the land"].where(df["Surface of the land"] >=0, inplace=True)
+    df["Surface area of the plot of land"] = df["Surface of the land"]
 
+    df.drop_duplicates(subset=df.columns[1:], inplace=True)
     df: pd.DataFrame = convert_datatypes(df)
 
     # print(df["Source"].unique())
     # print(df.info())
-
     df.to_csv(__database_file)
 
 
@@ -244,4 +249,6 @@ def load_database(lightweight=True):
 
 if __name__ == "__main__":
     create_database()
-    print(load_database().describe())
+    df = load_database()
+    print(df.info())
+    print(df.describe())
