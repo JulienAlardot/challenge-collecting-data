@@ -336,7 +336,7 @@ def create_data_entry(datarow):
             for group in state_match.groups():
                 if not group:
                     continue
-                new_entries = ("neuf", "neuw", "neuve")
+                new_entries = ("neuf", "neuw", "nieuw", "neuve")
                 for entry in new_entries:
                     if group.find(entry) != -1:
                         new_entry["State of the building"] = ["new"]

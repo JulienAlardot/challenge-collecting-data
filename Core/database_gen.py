@@ -59,11 +59,9 @@ def convert_datatypes(df):
         "castle",
         "pavilion",
     )
-    # df["Source"] = pd.Categorical(df["Source"])
+    df["Source"] = pd.Categorical(df["Source"])
     # for column in df.columns:
     #     print(column, df[column].unique())
-
-
 
     df["Type of property"] = pd.Categorical(
         df["Type of property"], categories=("apartment", "house"), ordered=True
@@ -129,9 +127,15 @@ def create_database():
         )
     ]
     df2["Locality"] = df2["Zip"]
+    df2["Url"] = df2["Url"].str.split('?').str[0]
     df2.drop_duplicates(subset=["Url"], keep="first", inplace=True)
     df2.drop(columns=["Url", "Zip"], inplace=True)
     df2.dropna(subset=__non_url_data_cols, how="all")
+
+
+
+
+
     filters = list()
     for column in ("Furnished", "Open fire", "Garden", "Swimming pool"):
         df2[column] = df2[column].astype(str)
@@ -228,8 +232,17 @@ def create_database():
     # df = df[np.logical_or(df["Surface of the land"] >= 0, df["Surface of the land"] == np.nan)]
     df["Surface of the land"].where(df["Surface of the land"] >=0, inplace=True)
     df["Surface area of the plot of land"] = df["Surface of the land"]
-
+    df = df.loc[np.in1d(df["Type of property"],("commercial", "garage", "office", "land"), invert=True), :]
     df.drop_duplicates(subset=df.columns[1:], inplace=True)
+
+
+    # Data values override when "is not mentionned when false"
+    subset: Tuple = ("Swimming pool","Open fire","Garden","Terrace", "Fully equipped kitchen")
+    df.loc[:, subset] = df.loc[:, subset].astype(float).fillna(0)
+
+
+
+
     df: pd.DataFrame = convert_datatypes(df)
 
     # print(df["Source"].unique())
