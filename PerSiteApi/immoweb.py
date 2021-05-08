@@ -5,9 +5,8 @@ import re
 import pandas as pd
 
 from selenium import webdriver
-
-from time import sleep
 from typing import List, Dict
+
 import requests
 import json
 
@@ -66,27 +65,21 @@ class Immoweb:
 
     # retourne le milieu du texte entre les deux balises et le texte qui suit
     def coupepage(self, texte, debut, fin, n=1):
-        debutT = texte.index(debut) + len(debut)
-        texte = texte[debutT:]
-        finT = texte.index(fin)
+        debutT: int = texte.index(debut) + len(debut)
+        texte: str = texte[debutT:]
+        finT: str = texte.index(fin)
 
         if finT:
             return texte[:finT], texte[finT:]
         else:
             return False, False
 
-    def _finditem(self, obj, key):
-        if key in obj: return obj[key]
-        for k, v in obj.items():
-            if isinstance(v, dict):
-                return self._finditem(v, key)  # added return statement
-
     def json_to_dic (self, json_immo: dict):
         # print("immo_path", self.immo_path)
-        new_sale = {}
+        new_sale: Dict = {}
         for key, path in self.immo_path.items():
-            n = len(path)
-            i = 0
+            n: int = len(path)
+            i: int = 0
             element = json_immo[path[i]]
             if type(element) is list:
                 element = element[0]
@@ -98,7 +91,7 @@ class Immoweb:
             new_sale[key] = element
         return new_sale
 
-    def _loop_cluster(self, s_url, cluster: str):
+    def _loop_cluster(self, s_url: set, cluster: str):
         print(len(self.url_immo))
         print(len(self.url_cluster))
         for x in self.datas_immoweb.Url:
@@ -294,7 +287,7 @@ class Immoweb:
 
     def _generator_db_url(self) -> bool:
 
-        count_limit = 12 + len(self.url_results_search)
+        # count_limit = 12 + len(self.url_results_search)
         count_sale = 0
         for zip in self.zip_code.zipcode:
             url_list = f"{self.url_vente}{zip}"
@@ -310,18 +303,6 @@ class Immoweb:
 
         return True
 
-    def clean_all_datas(self):
-
-        return True
-
 if __name__ == "__main__":
     immoweb = Immoweb()
     immoweb.run()
-
-
-"""count_rent = 0
-url_location = "https://www.immoweb.be/fr/recherche/maison-et-appartement/a-louer?countries=BE&orderBy=cheapest&postalCodes=BE-"
-for zip in self.zip_code.zipcode:
-    url_list = f"{url_location}{zip}"
-    self._scan_page_list(url_list)
-    count_rent += 1"""
