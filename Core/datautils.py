@@ -2,7 +2,7 @@ import pandas as pd
 import os
 from typing import List
 
-_zipcodes = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(__file__)),"Data", "zipcodes.csv"))
+_zipcodes = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(__file__)), "Data", "zipcodes.csv"))
 
 class DataStruct:
     COLUMNS = (
