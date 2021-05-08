@@ -20,7 +20,6 @@ __logic_immo_url = os.path.join(__data_path, "logic_immo_url.csv")
 __logic_immo_raw_data = os.path.join(__data_path, "logic_immo_raw_data.csv")
 __logic_immo_data = os.path.join(__data_path, "logic_immo_clean_data.csv")
 __root_url = r"https://www.logic-immo.be"
-__addresses = set()
 __translator = Translator()
 __pattern = re.compile(r'/fr/vente/.+/.+/.+\.html')
 
@@ -53,6 +52,18 @@ __patterns = {
 
 def search_for_urls():
     old_len_address = 0
+
+    try:
+        print("Trying to load existing URLs")
+        with open(__logic_immo_url, "rt", encoding="utf-8") as file_url:
+            f_r = csv.reader(file_url)
+            __addresses = set([line[0] for line in f_r])
+        print(f"success, size = {len(__addresses)}")
+    except FileNotFoundError:
+        print("Failed")
+        __addresses = set()
+
+
     for i, row in __zipcode_df.iterrows():
         print(i)
         print(row["local"])
@@ -460,6 +471,6 @@ def create_data_csv():
 
 
 if __name__ == "__main__":
-    # search_for_urls()
-    # search_raw_infos()
+    search_for_urls()
+    search_raw_infos()
     create_data_csv()
