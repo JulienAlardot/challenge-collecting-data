@@ -7,8 +7,10 @@ import pandas as pd
 from selenium import webdriver
 from typing import List, Dict
 
+import concurrent.futures
 import requests
 import json
+import time
 
 class Immoweb:
 
@@ -39,8 +41,8 @@ class Immoweb:
 
         self.url_vente: str = "https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-"
         self.immo_path: Dict = {
-            "Zip": ["customers", "location","postalCode"],
-            "Locality": ["customers", "location", 'locality'],
+            #"Zip": ["customers", "location","postalCode"],
+            #"Locality": ["customers", "location", 'locality'],
             "Type of property": ["property", "type"],
             "Subtype of property": ["property", "subtype"],
             "Price": ["transaction", "sale", "price"],
@@ -60,8 +62,11 @@ class Immoweb:
             "Swimming pool": ["property", "hasSwimmingPool"],
             "State of the building": ["property", "building", "condition"]
         }
+        self.data_layer_json: Dict = {
+            "Zip": ["classified", "zip"]
+        }
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0'}
-        self.driver = webdriver.Firefox()
+        self.liste_threading=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
     # retourne le milieu du texte entre les deux balises et le texte qui suit
     def coupepage(self, texte, debut, fin, n=1):
@@ -74,7 +79,7 @@ class Immoweb:
         else:
             return False, False
 
-    def json_to_dic (self, json_immo: dict):
+    def json_to_dic (self, json_immo: dict, path: Dict):
         # print("immo_path", self.immo_path)
         new_sale: Dict = {}
         for key, path in self.immo_path.items():
@@ -134,6 +139,7 @@ class Immoweb:
                         break
                     if i % 100 == 0:
                         self.save_data_to_csv()
+
         self.save_data_to_csv()
         print(type(self.datas_immoweb), self.datas_immoweb)
 
@@ -152,10 +158,12 @@ class Immoweb:
                 i += 1
             raise Exception(i, "clusters", url)
         if "404 not found" not in texte:  # Then
-            texte, suite = self.coupepage(texte, "window.classified = ", "};")
+            texte, suite = self.coupepage(texte, "window.dataLayer = ", "};")
+            texte += "}"
+            texte, suite = self.coupepage(suite, "window.classified = ", "};")
             texte += "}"
             json_immo = json.loads(texte)
-            new_sale = self.json_to_dic(json_immo)
+            new_sale = self.json_to_dic(json_immo, self.immo_path)
 
             zip_locality = re.split("/", url)
             new_sale["Zip"] = zip_locality[8]
@@ -177,7 +185,6 @@ class Immoweb:
         print(len(self.url_immo))
 
         for url in self.url_immo:
-
             try:
                 new_sale = self.scan_page_bien_immobilier(url)
             except Exception as excep:
@@ -201,22 +208,24 @@ class Immoweb:
         print(self.datas_immoweb.tail())
 
     def run(self):
-        # self._generator_db_url()
+        start = time.perf_counter()
+        self._generator_db_url()
         # self._scan_page_list('https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&postalCodes=BE-1348')
         # self._add_set_to_csv()
         # self.scan_page_bien_immobilier('https://www.immoweb.be/fr/annonce/kot/a-vendre/bruxelles-ville/1000/9303884?searchId=60914b580d2b7')
         # self._save_set_to_csv()
         self.driver.close()
-        cluster = "APARTMENT_GROUP"
-        s_url_appart = self.datas_immoweb[self.datas_immoweb["Subtype of property"] == cluster].Url
-        self._loop_cluster(s_url_appart, "appartement")
-        cluster = "HOUSE_GROUP"
-        s_url_maison = self.datas_immoweb[self.datas_immoweb["Subtype of property"] == cluster].Url
-        self._loop_cluster(s_url_maison, "maison")
+        #cluster = "APARTMENT_GROUP"
+        #s_url_appart = self.datas_immoweb[self.datas_immoweb["Subtype of property"] == cluster].Url
+        #self._loop_cluster(s_url_appart, "appartement")
+        #cluster = "HOUSE_GROUP"
+        #s_url_maison = self.datas_immoweb[self.datas_immoweb["Subtype of property"] == cluster].Url
+        #self._loop_cluster(s_url_maison, "maison")
         # self.loop_immo()
-        self.save_data_to_csv()
+        #self.save_data_to_csv()
         # self.clean_all_datas()
-        print("fini")
+        finish = time.perf_counter()
+        print(f"fini en {round(finish-start, 2)} secondes")
 
     def _save_set_to_csv(self):
         with open(self.path_results_search, 'w') as file:
@@ -243,7 +252,7 @@ class Immoweb:
         self.url_immo = new_set
 
     # https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-1341,1348
-    def _scan_page_list(self, url: str, num_pages: int = 1) -> bool:
+    def _scan_page_list(self, zip: int, num_pages: int = 1, driver = None) -> bool:
         """
         Scan the page with result of research.
         :param url: An String url without page=xx
@@ -251,19 +260,27 @@ class Immoweb:
         :return: Now, I dont know.
         """
 
+        url_list = f"{self.url_vente}{zip}"
+
         pager = f"&page={num_pages}"
-        url_paged = url + pager
+        url_paged = url_list + pager
+        print(url_paged)
         pagination = [0]
         if url_paged not in self.url_results_search:
             self.url_results_search.add(url_paged)
-            self.driver.get(url_paged)
-            text = self.driver.page_source
+            if driver is None:
+                firefox_profile = webdriver.FirefoxProfile()
+                firefox_profile.set_preference("permissions.default.image", 2)
+                driver = webdriver.Firefox(firefox_profile)
+
+            driver.get(url_paged)
+            text = driver.page_source
 
             if "Désolé. Aucun résultat trouvé." in text:
                 print(url_paged, " pas trouvé")
                 return False
             elif "pagination__item" in text:
-                li_pagination_item = self.driver.find_elements_by_css_selector('li.pagination__item')
+                li_pagination_item = driver.find_elements_by_css_selector('li.pagination__item')
                 pagination = [1]
                 for element in li_pagination_item:
                     number = re.search(self.r_num_page, element.text)
@@ -271,35 +288,32 @@ class Immoweb:
                         pagination.append(int(number.group(0)))
                 print(pagination)
                 if max(pagination) == 333:
-                    print("333 pages a scaner => url passée : ", url_paged)
+                    print("333 pages a scanner => url passée : ", url_paged)
                     return False
 
-            a_elements = self.driver.find_elements_by_css_selector('a.card__title-link')
+            a_elements = driver.find_elements_by_css_selector('a.card__title-link')
             for element in a_elements:
                 self.url_immo.add(element.get_attribute('href'))
             print(len(self.url_immo), " adresses url de biens")
 
             #  Section who verify if we must turn to next page
             if max(pagination) == num_pages or pagination[0] == 0:
+                if driver is not None:
+                    driver.close()
                 return True
             else:
-                self._scan_page_list(url, num_pages+1)
+                self._scan_page_list(zip, num_pages+1)
 
+    #  https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre/liege/province?countries=BE&orderBy=relevance&page=1
     def _generator_db_url(self) -> bool:
 
-        # count_limit = 12 + len(self.url_results_search)
-        count_sale = 0
-        for zip in self.zip_code.zipcode:
-            url_list = f"{self.url_vente}{zip}"
-            #if count_sale < count_limit:
-                                                # temporaire, pour éviter que le programme tourne de trop lors du dev.
-            print("run on : ", url_list)
-            self._scan_page_list(url_list)
-            count_sale += 1
-            print(count_sale)
-            self._save_set_to_csv()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.map(self._scan_page_list, self.zip_code.zipcode)
 
-        print('page de ventes', count_sale)
+        self._save_set_to_csv()
+
+        print(len(self.url_immo), 'pages de biens')
+        print(len(self.url_results_search), 'pages de résultats')
 
         return True
 
