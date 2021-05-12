@@ -105,7 +105,7 @@ def create_database():
     df1: pd.DataFrame = pd.read_csv(__logic_immo_data)
     df1["Locality"] = df1["Zip"]
     df1.drop_duplicates(subset=["Url"], keep="first", inplace=True)
-    df1.drop(columns=["Id", "Url", "Zip"], inplace=True)
+    df1.drop(columns=["Id", "Zip"], inplace=True)
     for column in df1.columns:
         df1[column].where(df1[column] != -1, inplace=True)
         if column == "State of the building":
