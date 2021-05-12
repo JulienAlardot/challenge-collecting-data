@@ -78,7 +78,7 @@ class Immoweb:
         self.liste_threading=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
         ##### Lists used for the MultiThreading ######
-        self.provinces_house = [
+        self.provinces_house_apartement = [
             ["house", "anvers/province"],
             ["house", "limbourg/province"],
             ["house", "flandre-orientale/province"],
@@ -89,22 +89,23 @@ class Immoweb:
             ["house", "liege/province"],
             ["house", "luxembourg/province"],
             ["house", "bruxelles/province"],
-            ["house", "namur/province"]
-        ]
-
-        self.province_apptmnt = [
-            ["apartment", "namur/province"],
-            ["apartment", "anvers/province"],
-            ["apartment", "limbourg/province"],
+            ["house", "namur/province"],
             ["apartment", "flandre-orientale/province"],
+            ["apartment", "anvers/province"],
+            ["apartment", "bruxelles/province"],
             ["apartment", "flandre-occidentale/province"],
-            ["apartment", "brabant-flamand/province"],
-            ["apartment", "brabant-wallon/province"],
             ["apartment", "hainaut/province"],
             ["apartment", "liege/province"],
+            ["apartment", "brabant-flamand/province"],
+            ["apartment", "brabant-wallon/province"],
+            ["apartment", "limbourg/province"],
             ["apartment", "luxembourg/province"],
-            ["apartment", "bruxelles/province"],
             ["apartment", "namur/province"]
+        ]
+
+        self.reloop_province = [
+            ["house", "hainaut/province"],
+            ["apartment", "bruxelles/province"]
         ]
 
     # retourne le milieu du texte entre les deux balises et le texte qui suit
@@ -253,7 +254,7 @@ class Immoweb:
         # self._add_set_to_csv()
         # self.scan_page_bien_immobilier('https://www.immoweb.be/fr/annonce/kot/a-vendre/bruxelles-ville/1000/9303884?searchId=60914b580d2b7')
         # self._save_set_to_csv()
-        self.driver.close()
+        # self.driver.close()
         #cluster = "APARTMENT_GROUP"
         #s_url_appart = self.datas_immoweb[self.datas_immoweb["Subtype of property"] == cluster].Url
         #self._loop_cluster(s_url_appart, "appartement")
@@ -261,7 +262,9 @@ class Immoweb:
         #s_url_maison = self.datas_immoweb[self.datas_immoweb["Subtype of property"] == cluster].Url
         #self._loop_cluster(s_url_maison, "maison")
         # self.loop_immo()
-        #self.save_data_to_csv()
+        # self.save_data_to_csv()
+        self._save_set_to_csv()
+        self._save_url_immo()
         # self.clean_all_datas()
         finish = time.perf_counter()
         print(f"fini en {round(finish-start, 2)} secondes")
@@ -291,7 +294,7 @@ class Immoweb:
         self.url_immo = new_set
 
     # https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-1341,1348
-    def _scan_page_list(self, zip: int) -> bool:
+    def _scan_page_list(self, province:str) -> bool:
         """
         Scan the page with result of research.
         :param url: An String url without page=xx
@@ -302,14 +305,20 @@ class Immoweb:
         url_list = f"{self.url_vente}{zip}"
         num_pages = 1
 
+        regio = province[1]
+        house_aptmnt = province[0]
+
+        links = []
+        url = f"https://www.immoweb.be/en/search/{house_aptmnt}/for-sale/{regio}?countries=BE&page=1&orderBy=cheapest"
+
         pagination = [0]
         firefox_profile = webdriver.FirefoxProfile()
         firefox_profile.set_preference("permissions.default.image", 2)
         driver = webdriver.Firefox(firefox_profile)
 
-        while max(pagination) is not num_pages:
+        while True:
             pager = f"&page={num_pages}"
-            url_paged = url_list + pager
+            url_paged = url + pager
             print(url_paged)
             if url_paged not in self.url_results_search:
                 self.url_results_search.add(url_paged)
@@ -317,22 +326,9 @@ class Immoweb:
                 driver.get(url_paged)
                 text = driver.page_source
 
-                if "Désolé. Aucun résultat trouvé." in text:
-                    print(url_paged, " pas trouvé")
-                    driver.close()
-                    return False
-                elif "pagination__item" in text:
-                    li_pagination_item = driver.find_elements_by_css_selector('li.pagination__item')
-                    pagination = [1]
-                    for element in li_pagination_item:
-                        number = re.search(self.r_num_page, element.text)
-                        if number is not None:
-                            pagination.append(int(number.group(0)))
-                    print(pagination)
-                    if max(pagination) == 333:
-                        print("333 pages a scanner => url passée : ", url_paged)
-                        driver.close()
-                        return False
+                if "pagination__link pagination__link--next button button--text button--size-small" not in text:
+                    print(url_paged, " pas fin ou pas trouvé")
+                    break
 
                 a_elements = driver.find_elements_by_css_selector('a.card__title-link')
                 for element in a_elements:
@@ -341,15 +337,19 @@ class Immoweb:
 
             num_pages += 1
 
+        self._save_set_to_csv()
+        self._save_url_immo()
         driver.close()
 
     #  https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre/liege/province?countries=BE&orderBy=relevance&page=1
     def _generator_db_url(self) -> bool:
 
-        with ThreadPoolExecutorWithQueueSizeLimit(max_workers=10) as executor:
-            executor.map(self._scan_page_list, self.zip_code.zipcode)
-            self._save_set_to_csv()
-            self._save_url_immo()
+        with ThreadPoolExecutorWithQueueSizeLimit(maxsize=12, max_workers=12) as executor:
+            executor.map(self._scan_page_list, self.reloop_province)
+
+#       provinces_house_apartement
+#        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
+#            executor.map(self._scan_page_list, self.province_apptmnt)
 
         print(len(self.url_immo), 'pages de biens')
         print(len(self.url_results_search), 'pages de résultats')
