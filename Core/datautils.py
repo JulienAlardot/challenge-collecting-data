@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import os
 from typing import List
@@ -111,29 +112,39 @@ class DataStruct:
                 df[columns] = df[columns].astype(str)
         return df
 
-    @classmethod
-    def get_locality(cls, zipcode):
+    @staticmethod
+    def get_locality(zipcode):
         where = _zipcodes[_zipcodes["zipcode"] == zipcode]["local"].str.capitalize().values
         return where
 
-    @classmethod
-    def get_zipcode(cls, locality) -> List:
+    @staticmethod
+    def get_zipcode(locality) -> List:
         where = _zipcodes[_zipcodes["local"].str.lower() == locality.lower()]["zipcode"].values
         return where
 
-    @classmethod
-    def get_province(cls, zipcode) -> List:
-        where = _zipcodes_ext.loc[_zipcodes_ext["zipcode"] == zipcode, "province"].values[0]
+    @staticmethod
+    def get_province(zipcode) -> List:
+        try:
+            where = _zipcodes_ext.loc[_zipcodes_ext["zipcode"] == zipcode, "province"].values[0]
+        except IndexError:
+            where = np.nan
         return where
 
-    @classmethod
-    def get_region(cls, zipcode) -> List:
-        where = _zipcodes_ext.loc[_zipcodes_ext["zipcode"] == zipcode, "region"].values[0]
+    @staticmethod
+    def get_region(zipcode) -> List:
+        try:
+            where = _zipcodes_ext.loc[_zipcodes_ext["zipcode"] == zipcode, "region"].values[0]
+        except IndexError:
+            where = np.nan
         return where
 
-    @classmethod
-    def get_zipcode_data(cls):
+    @staticmethod
+    def get_zipcode_data():
         return _zipcodes.copy()
+
+    @staticmethod
+    def get_zipcode_extended_data():
+        return _zipcodes_ext.copy()
 
 if __name__ == "__main__":
     print(DataStruct.COLUMNS)
