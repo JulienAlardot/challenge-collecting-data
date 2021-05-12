@@ -7,10 +7,19 @@ import pandas as pd
 from selenium import webdriver
 from typing import List, Dict
 
+import queue
 import concurrent.futures
+
 import requests
 import json
 import time
+
+
+class ThreadPoolExecutorWithQueueSizeLimit(concurrent.futures.ThreadPoolExecutor):
+    def __init__(self, maxsize=5, *args, **kwargs):
+        super(ThreadPoolExecutorWithQueueSizeLimit, self).__init__(*args, **kwargs)
+        self._work_queue = queue.Queue(maxsize=maxsize)
+
 
 class Immoweb:
 
@@ -67,6 +76,36 @@ class Immoweb:
         }
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0'}
         self.liste_threading=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        ##### Lists used for the MultiThreading ######
+        self.provinces_house = [
+            ["house", "anvers/province"],
+            ["house", "limbourg/province"],
+            ["house", "flandre-orientale/province"],
+            ["house", "flandre-occidentale/province"],
+            ["house", "brabant-flamand/province"],
+            ["house", "brabant-wallon/province"],
+            ["house", "hainaut/province"],
+            ["house", "liege/province"],
+            ["house", "luxembourg/province"],
+            ["house", "bruxelles/province"],
+            ["house", "namur/province"]
+        ]
+
+        self.province_apptmnt = [
+            ["apartment", "namur/province"],
+            ["apartment", "anvers/province"],
+            ["apartment", "limbourg/province"],
+            ["apartment", "flandre-orientale/province"],
+            ["apartment", "flandre-occidentale/province"],
+            ["apartment", "brabant-flamand/province"],
+            ["apartment", "brabant-wallon/province"],
+            ["apartment", "hainaut/province"],
+            ["apartment", "liege/province"],
+            ["apartment", "luxembourg/province"],
+            ["apartment", "bruxelles/province"],
+            ["apartment", "namur/province"]
+        ]
 
     # retourne le milieu du texte entre les deux balises et le texte qui suit
     def coupepage(self, texte, debut, fin, n=1):
@@ -252,7 +291,7 @@ class Immoweb:
         self.url_immo = new_set
 
     # https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-1341,1348
-    def _scan_page_list(self, zip: int, num_pages: int = 1, driver = None) -> bool:
+    def _scan_page_list(self, zip: int) -> bool:
         """
         Scan the page with result of research.
         :param url: An String url without page=xx
@@ -261,56 +300,56 @@ class Immoweb:
         """
 
         url_list = f"{self.url_vente}{zip}"
+        num_pages = 1
 
-        pager = f"&page={num_pages}"
-        url_paged = url_list + pager
-        print(url_paged)
         pagination = [0]
-        if url_paged not in self.url_results_search:
-            self.url_results_search.add(url_paged)
-            if driver is None:
-                firefox_profile = webdriver.FirefoxProfile()
-                firefox_profile.set_preference("permissions.default.image", 2)
-                driver = webdriver.Firefox(firefox_profile)
+        firefox_profile = webdriver.FirefoxProfile()
+        firefox_profile.set_preference("permissions.default.image", 2)
+        driver = webdriver.Firefox(firefox_profile)
 
-            driver.get(url_paged)
-            text = driver.page_source
+        while max(pagination) is not num_pages:
+            pager = f"&page={num_pages}"
+            url_paged = url_list + pager
+            print(url_paged)
+            if url_paged not in self.url_results_search:
+                self.url_results_search.add(url_paged)
 
-            if "Désolé. Aucun résultat trouvé." in text:
-                print(url_paged, " pas trouvé")
-                return False
-            elif "pagination__item" in text:
-                li_pagination_item = driver.find_elements_by_css_selector('li.pagination__item')
-                pagination = [1]
-                for element in li_pagination_item:
-                    number = re.search(self.r_num_page, element.text)
-                    if number is not None:
-                        pagination.append(int(number.group(0)))
-                print(pagination)
-                if max(pagination) == 333:
-                    print("333 pages a scanner => url passée : ", url_paged)
-                    return False
+                driver.get(url_paged)
+                text = driver.page_source
 
-            a_elements = driver.find_elements_by_css_selector('a.card__title-link')
-            for element in a_elements:
-                self.url_immo.add(element.get_attribute('href'))
-            print(len(self.url_immo), " adresses url de biens")
-
-            #  Section who verify if we must turn to next page
-            if max(pagination) == num_pages or pagination[0] == 0:
-                if driver is not None:
+                if "Désolé. Aucun résultat trouvé." in text:
+                    print(url_paged, " pas trouvé")
                     driver.close()
-                return True
-            else:
-                self._scan_page_list(zip, num_pages+1)
+                    return False
+                elif "pagination__item" in text:
+                    li_pagination_item = driver.find_elements_by_css_selector('li.pagination__item')
+                    pagination = [1]
+                    for element in li_pagination_item:
+                        number = re.search(self.r_num_page, element.text)
+                        if number is not None:
+                            pagination.append(int(number.group(0)))
+                    print(pagination)
+                    if max(pagination) == 333:
+                        print("333 pages a scanner => url passée : ", url_paged)
+                        driver.close()
+                        return False
+
+                a_elements = driver.find_elements_by_css_selector('a.card__title-link')
+                for element in a_elements:
+                    self.url_immo.add(element.get_attribute('href'))
+                print(len(self.url_immo), url_paged, " adresses url de biens", pagination, num_pages)
+
+            num_pages += 1
+
+        driver.close()
 
     #  https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre/liege/province?countries=BE&orderBy=relevance&page=1
     def _generator_db_url(self) -> bool:
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutorWithQueueSizeLimit(max_workers=10) as executor:
             executor.map(self._scan_page_list, self.zip_code.zipcode)
-
-        self._save_set_to_csv()
+            self._save_set_to_csv()
+            self._save_url_immo()
 
         print(len(self.url_immo), 'pages de biens')
         print(len(self.url_results_search), 'pages de résultats')
