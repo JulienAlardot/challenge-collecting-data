@@ -129,7 +129,7 @@ def create_database():
     df2["Locality"] = df2["Zip"]
     df2["Url"] = df2["Url"].str.split('?').str[0]
     df2.drop_duplicates(subset=["Url"], keep="first", inplace=True)
-    df2.drop(columns=["Url", "Zip"], inplace=True)
+    df2.drop(columns=["Zip"], inplace=True)
     df2.dropna(subset=__non_url_data_cols, how="all")
 
 
