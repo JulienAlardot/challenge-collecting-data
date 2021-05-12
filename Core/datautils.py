@@ -3,6 +3,8 @@ import os
 from typing import List
 
 _zipcodes = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(__file__)), "Data", "zipcodes.csv"))
+_zipcodes_ext = pd.read_csv(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "Data", "zipcodes_extended.csv"), delimiter=";")
 
 class DataStruct:
     COLUMNS = (
@@ -120,16 +122,29 @@ class DataStruct:
         return where
 
     @classmethod
+    def get_province(cls, zipcode) -> List:
+        where = _zipcodes_ext.loc[_zipcodes_ext["zipcode"] == zipcode, "province"].values[0]
+        return where
+
+    @classmethod
+    def get_region(cls, zipcode) -> List:
+        where = _zipcodes_ext.loc[_zipcodes_ext["zipcode"] == zipcode, "region"].values[0]
+        return where
+
+    @classmethod
     def get_zipcode_data(cls):
         return _zipcodes.copy()
 
 if __name__ == "__main__":
     print(DataStruct.COLUMNS)
     print(DataStruct.DTYPES)
+    print(_zipcodes_ext)
 
     for k, v in DataStruct.COLUMNSDATA.items():
         print((k, v))
     print(DataStruct.DATAFRAMETEMPLATE.info())
     print(DataStruct.get_locality(5101))
     print(DataStruct.get_zipcode("Loyers"))
+    print(DataStruct.get_province(5101), type(DataStruct.get_province(5101)))
+    print(DataStruct.get_region(5101), type(DataStruct.get_region(5101)))
     print(DataStruct.get_zipcode_data())
