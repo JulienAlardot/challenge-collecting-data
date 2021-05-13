@@ -109,13 +109,13 @@ class Immoweb:
         ]
 
     # retourne le milieu du texte entre les deux balises et le texte qui suit
-    def coupepage(self, texte, debut, fin, n=1):
-        debutT: int = texte.index(debut) + len(debut)
-        texte: str = texte[debutT:]
-        finT: str = texte.index(fin)
+    def coupe_page(self, text, debut, fin, n=1):
+        debutT: int = text.index(debut) + len(debut)
+        text: str = text[debutT:]
+        finT: int = text.index(fin)
 
         if finT:
-            return texte[:finT], texte[finT:]
+            return text[:finT], text[finT:]
         else:
             return False, False
 
@@ -162,7 +162,7 @@ class Immoweb:
                 base_url = "https://www.immoweb.be/fr/annonce/" + cluster + "/a-vendre/" + locality + "/" + zip + "/"
 
                 while "classified__list-item-link" in texte:
-                    url, texte = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
+                    url, texte = self.coupe_page(texte, '<a class="classified__list-item-link" href="', '">')
                     code_immo = re.search("\d*$", url)
                     url = base_url + code_immo.group(0)
 
@@ -186,23 +186,23 @@ class Immoweb:
     def scan_page_bien_immobilier(self, url: str):
         print(url)
         page = requests.get(url)
-        texte = page.text
+        text = page.text
 
-        if "accordion--cluster" in texte:  # If it's a cluster
-            url, suite = self.coupepage(texte, '<a class="classified__list-item-link" href="', '">')
+        if "accordion--cluster" in text:  # If it's a cluster
+            url, suite = self.coupe_page(text, '<a class="classified__list-item-link" href="', '">')
             self.url_cluster.add(url)
             i = 2
             while "classified__list-item-link" in suite:
-                url, suite = self.coupepage(suite, '<a class="classified__list-item-link" href="', '">')
+                url, suite = self.coupe_page(suite, '<a class="classified__list-item-link" href="', '">')
                 self.url_cluster.add(url)
                 i += 1
             raise Exception(i, "clusters", url)
-        if "404 not found" not in texte:  # Then
-            texte, suite = self.coupepage(texte, "window.dataLayer = ", "};")
-            texte += "}"
-            texte, suite = self.coupepage(suite, "window.classified = ", "};")
-            texte += "}"
-            json_immo = json.loads(texte)
+        if "404 not found" not in text:  # Then
+            text, suite = self.coupe_page(text, "window.dataLayer = ", "};")
+            text += "}"
+            text, suite = self.coupe_page(suite, "window.classified = ", "};")
+            text += "}"
+            json_immo = json.loads(text)
             new_sale = self.json_to_dic(json_immo, self.immo_path)
 
             zip_locality = re.split("/", url)
@@ -217,12 +217,15 @@ class Immoweb:
 
     def loop_immo(self):
         i, passed = 1, 0
-        max = 175000
+        limit: int = 175000  # to limit the infinite loop...
 
-        print(len(self.url_immo))
+        self.clean_url_immo()
         for x in self.datas_immoweb.Url:
             self.url_immo.discard(x)
         print(len(self.url_immo))
+
+        with ThreadPoolExecutorWithQueueSizeLimit(maxsize=12, max_workers=12) as executor:
+            executor.map(self.scan_page_bien_immobilier, self.url_immo)
 
         for url in self.url_immo:
             try:
@@ -234,18 +237,13 @@ class Immoweb:
                 self.datas_immoweb = self.datas_immoweb.append(new_sale)
             i += 1
 
-            if i > max:
+            if i > limit:
                 break
-            if i % 100 == 0:
+            if i % 1000 == 0:
                 self.save_data_to_csv()
 
         print(type(self.datas_immoweb), self.datas_immoweb)
         self.save_data_to_csv()
-
-    def save_data_to_csv(self):
-        self.datas_immoweb.to_csv(self.path_data_immoweb)
-        print("SAUVEGARDE A ", self.datas_immoweb.shape, "len", len(self.url_immo))
-        print(self.datas_immoweb.tail())
 
     def run(self):
         start = time.perf_counter()
@@ -268,6 +266,11 @@ class Immoweb:
         # self.clean_all_datas()
         finish = time.perf_counter()
         print(f"fini en {round(finish-start, 2)} secondes")
+
+    def save_data_to_csv(self):
+        self.datas_immoweb.to_csv(self.path_data_immoweb)
+        print("SAUVEGARDE A ", self.datas_immoweb.shape, "len", len(self.url_immo))
+        print(self.datas_immoweb.tail())
 
     def _save_set_to_csv(self):
         with open(self.path_results_search, 'w') as file:
@@ -293,22 +296,20 @@ class Immoweb:
             new_set.add(new_url)
         self.url_immo = new_set
 
-    # https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-1341,1348
-    def _scan_page_list(self, province:str) -> bool:
+# https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-1341
+    def _scan_page_list(self, province: List):
         """
-        Scan the page with result of research.
-        :param url: An String url without page=xx
-        :param num_pages: Number of the page to scan
-        :return: Now, I dont know.
+        Scan the page with result of research. Called in thread.
+        :param province:
+        :return: Closed when finished.
         """
 
-        url_list = f"{self.url_vente}{zip}"
+        #url_list = f"{self.url_vente}{zip}"
         num_pages = 1
 
         regio = province[1]
         house_aptmnt = province[0]
 
-        links = []
         url = f"https://www.immoweb.be/en/search/{house_aptmnt}/for-sale/{regio}?countries=BE&page=1&orderBy=cheapest"
 
         pagination = [0]
@@ -345,7 +346,7 @@ class Immoweb:
     def _generator_db_url(self) -> bool:
 
         with ThreadPoolExecutorWithQueueSizeLimit(maxsize=12, max_workers=12) as executor:
-            executor.map(self._scan_page_list, self.reloop_province)
+            executor.map(self._scan_page_list, self.provinces_house_apartement)
 
 #       provinces_house_apartement
 #        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
