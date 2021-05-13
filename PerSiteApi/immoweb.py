@@ -71,11 +71,15 @@ class Immoweb:
             "Swimming pool": ["property", "hasSwimmingPool"],
             "State of the building": ["property", "building", "condition"]
         }
+        self.json_path_clusters: Dict = {
+            "id": ["cluster", "units", "items", "id"],  # units = List[0], items = List[x]
+            "subtype": ["cluster", "units", "items", "subtype"],  # units = List[0], items = List[x]
+            "saleStatus": ["cluster", "units", "items", "saleStatus"]  # units = List[0], items = List[x]
+        }
         self.data_layer_json: Dict = {
             "Zip": ["classified", "zip"]
         }
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0'}
-        self.liste_threading=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
         ##### Lists used for the MultiThreading ######
         self.provinces_house_apartement = [
@@ -187,31 +191,31 @@ class Immoweb:
         print(url)
         page = requests.get(url)
         text = page.text
+        new_property: Dict = {}
+        zip_locality = re.split("/", url)
+        new_property["Zip"] = zip_locality[8]
+        new_property["Locality"] = zip_locality[7]
+        new_property["Url"] = url
+        new_property["Source"] = "Immoweb"
 
         if "accordion--cluster" in text:  # If it's a cluster
-            url, suite = self.coupe_page(text, '<a class="classified__list-item-link" href="', '">')
-            self.url_cluster.add(url)
-            i = 2
-            while "classified__list-item-link" in suite:
-                url, suite = self.coupe_page(suite, '<a class="classified__list-item-link" href="', '">')
-                self.url_cluster.add(url)
-                i += 1
-            raise Exception(i, "clusters", url)
-        if "404 not found" not in text:  # Then
-            text, suite = self.coupe_page(text, "window.dataLayer = ", "};")
-            text += "}"
-            text, suite = self.coupe_page(suite, "window.classified = ", "};")
+            text, suite = self.coupe_page(text, "window.classified = ", "};")
             text += "}"
             json_immo = json.loads(text)
-            new_sale = self.json_to_dic(json_immo, self.immo_path)
+            # json to dic
+            if json_immo.saleStatus is "AVAILABLE":
+                new_url_property_cluster: str = f"https://www.immoweb.be/fr/annonce/{json_immo['subtype']}/a-vendre/new_property['Locality']/{new_property['Zip']}/{json_immo['id']}"
+                self.scan_page_bien_immobilier(new_url_property_cluster)
+            return True
 
-            zip_locality = re.split("/", url)
-            new_sale["Zip"] = zip_locality[8]
-            new_sale["Locality"] = zip_locality[7]
-            new_sale["Url"] = url
-            new_sale["Source"] = "Immoweb"
-            print("nbr biens: ", len(self.datas_immoweb), "CP :", new_sale["Zip"], "len", len(self.url_immo))
-            return pd.DataFrame(new_sale, index=[len(self.datas_immoweb.index)])
+        if "404 not found" not in text:  # Then
+            text, suite = self.coupe_page(text, "window.classified = ", "};")
+            text += "}"
+            json_immo = json.loads(text)
+            new_property.update(self.json_to_dic(json_immo, self.immo_path))
+
+            print("nbr biens: ", len(self.datas_immoweb), "CP :", new_property["Zip"], "len", len(self.url_immo))
+            return pd.DataFrame(new_property, index=[len(self.datas_immoweb.index)])
         else:  # If it's error 404
             print("Error 404", url)
 
