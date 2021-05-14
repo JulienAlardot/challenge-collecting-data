@@ -44,6 +44,7 @@ class Immoweb:
         s = pd.read_csv(self.path_clusters)["0"]
         self.url_cluster: set = set(s)
         self.datas_immoweb = pd.read_csv(self.path_data_immoweb, index_col=0) # DataFrame: with all data collected
+        self.list_of_url_datas = set(self.datas_immoweb.Url)
 
         self.r_num_page = re.compile("\d{1,3}$")
         self.r_zip_code = re.compile("/\d{4}/")
@@ -123,7 +124,7 @@ class Immoweb:
         else:
             return False, False
 
-    def json_to_dic (self, json_immo: dict, path: Dict):
+    def json_to_dic (self, json_immo: dict) -> Dict:
         # print("immo_path", self.immo_path)
         new_sale: Dict = {}
         for key, path in self.immo_path.items():
@@ -141,52 +142,56 @@ class Immoweb:
         return new_sale
 
     def scan_page_bien_immobilier(self, url: str):
-        print(url)
-        page = requests.get(url)
-        text = page.text
-        new_property: Dict = {}
-        zip_locality = re.split("/", url)
-        new_property["Zip"] = zip_locality[8]
-        new_property["Locality"] = zip_locality[7]
-        new_property["Url"] = url
-        new_property["Source"] = "Immoweb"
+        # print(url)
+        if url not in self.list_of_url_datas:
+            page = requests.get(url)
+            text = page.text
+            new_property: Dict = {}
+            zip_locality = re.split("/", url)
+            new_property["Zip"] = zip_locality[8]
+            new_property["Locality"] = zip_locality[7]
+            new_property["Url"] = url
+            new_property["Source"] = "Immoweb"
 
-        if "accordion--cluster" in text:  # If it's a cluster
-            text, suite = self.coupe_page(text, "window.classified = ", "};")
-            text += "}"
-            json_immo = json.loads(text)
-            # json to dic
-            for unit in json_immo["cluster"]["unit"]:
-                for item in unit["items"]:
-                    if item.saleStatus is "AVAILABLE":
-                        new_url_property_cluster: str = f"https://www.immoweb.be/fr/annonce/{item['subtype']}/a-vendre/new_property['Locality']/{new_property['Zip']}/{item['id']}"
-                        self.scan_page_bien_immobilier(new_url_property_cluster)
-            return True
+            if "accordion--cluster" in text:  # If it's a cluster
+                print("cluster", url)
+                text, suite = self.coupe_page(text, "window.classified = ", "};")
+                text += "}"
+                json_immo = json.loads(text)
+                cluster = json_immo["cluster"]
+                for unit in cluster["units"]:
+                    for item in unit["items"]:
+                        if item['saleStatus'] == "AVAILABLE":
+                            # print("item available")
+                            new_url_property_cluster: str = f"https://www.immoweb.be/fr/annonce/{item['subtype']}/a-vendre/{new_property['Locality']}/{new_property['Zip']}/{item['id']}"
+                            # print("cluster new url :", new_url_property_cluster)
+                            self.scan_page_bien_immobilier(new_url_property_cluster)
 
-        if "404 not found" not in text:  # Then
-            text, suite = self.coupe_page(text, "window.classified = ", "};")
-            text += "}"
-            json_immo = json.loads(text)
-            new_property.update(self.json_to_dic(json_immo, self.immo_path))
-            self.datas_immoweb.update(new_property)
+            if "404 not found" not in text:  # Then
+                text, suite = self.coupe_page(text, "window.classified = ", "};")
+                text += "}"
+                json_immo = json.loads(text)
+                new_property.update(self.json_to_dic(json_immo))
+                new_property = pd.DataFrame(new_property, index=[len(self.datas_immoweb.index)])
+                self.datas_immoweb = self.datas_immoweb.append(new_property)
+                # print(new_property["Zip"], "len", len(self.url_immo))
 
-            print(new_property["Zip"], "len", len(self.url_immo))
-        else:  # If it's error 404
-            print("Error 404", url)
-        self.counter += 1
-        print(self.counter, "nbr biens: ", len(self.datas_immoweb), "len", len(self.url_immo))
-        if i % 1000 == 0:
-            self.save_data_to_csv()
-
+                self.counter += 1
+                print(self.counter, url)
+                if self.counter % 1000 == 0:
+                    self.save_data_to_csv()
+                    print(self.counter, "nbr biens: ", len(self.datas_immoweb), "len", len(self.url_immo))
+            else:  # If it's error 404
+                print("Error 404", url)
 
     def loop_immo(self):
-
         self.clean_url_immo()
         for x in self.datas_immoweb.Url:
             self.url_immo.discard(x)
         print(len(self.url_immo))
+        print(len(self.list_of_url_datas))
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
             executor.map(self.scan_page_bien_immobilier, self.url_immo)
 
         print(type(self.datas_immoweb), self.datas_immoweb)
@@ -194,19 +199,22 @@ class Immoweb:
         print("saved")
 
     def run(self):
+        print(self.datas_immoweb.shape)
         start = time.perf_counter()
         # self._generator_db_url()
         # self._save_set_to_csv()
         # self.clean_url_immo()
         # self._save_url_immo()
         self.loop_immo()
+        print("delayer")
+        time.sleep(20)
         self.save_data_to_csv()
         finish = time.perf_counter()
         print(f"fini en {round(finish-start, 2)} secondes")
 
     def save_data_to_csv(self):
         self.datas_immoweb.to_csv(self.path_data_immoweb)
-        print("SAUVEGARDE A ", self.datas_immoweb.shape, "len", len(self.url_immo))
+        print("SAUVEGARDE A ", self.datas_immoweb.shape, "len url immo", len(self.url_immo), "len database", len(self.list_of_url_datas))
         print(self.datas_immoweb.tail())
 
     def _save_set_to_csv(self):
@@ -227,7 +235,7 @@ class Immoweb:
 
     def clean_url_immo(self):
         new_set = set()
-        print ("clean url_immo")
+        print("clean url_immo")
         for url in self.url_immo:
             new_url = url.split("?searchId=")[0]
             new_set.add(new_url)
