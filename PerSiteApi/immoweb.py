@@ -43,7 +43,7 @@ class Immoweb:
         self.url_immo: set = set(s)
         s = pd.read_csv(self.path_clusters)["0"]
         self.url_cluster: set = set(s)
-        self.datas_immoweb = pd.read_csv(self.path_data_immoweb, index_col=0)
+        self.datas_immoweb = pd.read_csv(self.path_data_immoweb, index_col=0) # DataFrame: with all data collected
 
         self.r_num_page = re.compile("\d{1,3}$")
         self.r_zip_code = re.compile("/\d{4}/")
@@ -106,11 +106,11 @@ class Immoweb:
             ["apartment", "luxembourg/province"],
             ["apartment", "namur/province"]
         ]
-
         self.reloop_province = [
             ["house", "hainaut/province"],
             ["apartment", "bruxelles/province"]
         ]
+        self.counter = 0
 
     # retourne le milieu du texte entre les deux balises et le texte qui suit
     def coupe_page(self, text, debut, fin, n=1):
@@ -140,53 +140,6 @@ class Immoweb:
             new_sale[key] = element
         return new_sale
 
-    def _loop_cluster(self, s_url: set, cluster: str):
-        print(len(self.url_immo))
-        print(len(self.url_cluster))
-        for x in self.datas_immoweb.Url:
-            self.url_immo.discard(x)
-            self.url_cluster.discard(x)
-        print(len(self.url_immo))
-        print(len(self.url_cluster))
-
-        i, max = 0, 30000
-        for url_cluster in s_url:
-            url_cluster = str(url_cluster)
-            if url_cluster == "Url": print("url")
-            else:
-                zip_locality = re.split("/", url_cluster)
-                print(zip_locality)
-
-                zip = zip_locality[8]
-                locality = zip_locality[7]
-
-                print(url_cluster)
-                page = requests.get(url_cluster)
-                texte = page.text
-                base_url = "https://www.immoweb.be/fr/annonce/" + cluster + "/a-vendre/" + locality + "/" + zip + "/"
-
-                while "classified__list-item-link" in texte:
-                    url, texte = self.coupe_page(texte, '<a class="classified__list-item-link" href="', '">')
-                    code_immo = re.search("\d*$", url)
-                    url = base_url + code_immo.group(0)
-
-                    try:
-                        new_sale = self.scan_page_bien_immobilier(url)
-                    except Exception as excep:
-                        print(i, excep)
-                        self._save_clusters()
-                    else:
-                        self.datas_immoweb = self.datas_immoweb.append(new_sale)
-                    i += 1
-
-                    if i > max:
-                        break
-                    if i % 100 == 0:
-                        self.save_data_to_csv()
-
-        self.save_data_to_csv()
-        print(type(self.datas_immoweb), self.datas_immoweb)
-
     def scan_page_bien_immobilier(self, url: str):
         print(url)
         page = requests.get(url)
@@ -203,9 +156,11 @@ class Immoweb:
             text += "}"
             json_immo = json.loads(text)
             # json to dic
-            if json_immo.saleStatus is "AVAILABLE":
-                new_url_property_cluster: str = f"https://www.immoweb.be/fr/annonce/{json_immo['subtype']}/a-vendre/new_property['Locality']/{new_property['Zip']}/{json_immo['id']}"
-                self.scan_page_bien_immobilier(new_url_property_cluster)
+            for unit in json_immo["cluster"]["unit"]:
+                for item in unit["items"]:
+                    if item.saleStatus is "AVAILABLE":
+                        new_url_property_cluster: str = f"https://www.immoweb.be/fr/annonce/{item['subtype']}/a-vendre/new_property['Locality']/{new_property['Zip']}/{item['id']}"
+                        self.scan_page_bien_immobilier(new_url_property_cluster)
             return True
 
         if "404 not found" not in text:  # Then
@@ -213,61 +168,39 @@ class Immoweb:
             text += "}"
             json_immo = json.loads(text)
             new_property.update(self.json_to_dic(json_immo, self.immo_path))
+            self.datas_immoweb.update(new_property)
 
-            print("nbr biens: ", len(self.datas_immoweb), "CP :", new_property["Zip"], "len", len(self.url_immo))
-            return pd.DataFrame(new_property, index=[len(self.datas_immoweb.index)])
+            print(new_property["Zip"], "len", len(self.url_immo))
         else:  # If it's error 404
             print("Error 404", url)
+        self.counter += 1
+        print(self.counter, "nbr biens: ", len(self.datas_immoweb), "len", len(self.url_immo))
+        if i % 1000 == 0:
+            self.save_data_to_csv()
+
 
     def loop_immo(self):
-        i, passed = 1, 0
-        limit: int = 175000  # to limit the infinite loop...
 
         self.clean_url_immo()
         for x in self.datas_immoweb.Url:
             self.url_immo.discard(x)
         print(len(self.url_immo))
 
-        with ThreadPoolExecutorWithQueueSizeLimit(maxsize=12, max_workers=12) as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.map(self.scan_page_bien_immobilier, self.url_immo)
-
-        for url in self.url_immo:
-            try:
-                new_sale = self.scan_page_bien_immobilier(url)
-            except Exception as excep:
-                print(i, excep)
-                self._save_clusters()
-            else:
-                self.datas_immoweb = self.datas_immoweb.append(new_sale)
-            i += 1
-
-            if i > limit:
-                break
-            if i % 1000 == 0:
-                self.save_data_to_csv()
 
         print(type(self.datas_immoweb), self.datas_immoweb)
         self.save_data_to_csv()
+        print("saved")
 
     def run(self):
         start = time.perf_counter()
-        self._generator_db_url()
-        # self._scan_page_list('https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&postalCodes=BE-1348')
-        # self._add_set_to_csv()
-        # self.scan_page_bien_immobilier('https://www.immoweb.be/fr/annonce/kot/a-vendre/bruxelles-ville/1000/9303884?searchId=60914b580d2b7')
+        # self._generator_db_url()
         # self._save_set_to_csv()
-        # self.driver.close()
-        #cluster = "APARTMENT_GROUP"
-        #s_url_appart = self.datas_immoweb[self.datas_immoweb["Subtype of property"] == cluster].Url
-        #self._loop_cluster(s_url_appart, "appartement")
-        #cluster = "HOUSE_GROUP"
-        #s_url_maison = self.datas_immoweb[self.datas_immoweb["Subtype of property"] == cluster].Url
-        #self._loop_cluster(s_url_maison, "maison")
-        # self.loop_immo()
-        # self.save_data_to_csv()
-        self._save_set_to_csv()
-        self._save_url_immo()
-        # self.clean_all_datas()
+        # self.clean_url_immo()
+        # self._save_url_immo()
+        self.loop_immo()
+        self.save_data_to_csv()
         finish = time.perf_counter()
         print(f"fini en {round(finish-start, 2)} secondes")
 
