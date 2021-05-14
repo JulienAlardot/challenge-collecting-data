@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 from typing import Tuple
 
+from Core.datautils import DataStruct
+
 __core_path: str = os.path.dirname(__file__)
 __root_path: str = os.path.dirname(__core_path)
 __per_site_api_path: str = os.path.join(__root_path, "PerSiteApi")
@@ -76,6 +78,14 @@ def convert_datatypes(df):
         df["State of the building"],
         categories=("to renovate", "good", "new"),
         ordered=True,
+    )
+    df["Province"] = pd.Categorical(
+        df["Province"],
+        categories=list(sorted(DataStruct.get_zipcode_extended_data()["province"].unique()))
+    )
+    df["Region"] = pd.Categorical(
+        df["Region"],
+        categories=list(sorted(DataStruct.get_zipcode_extended_data()["region"].unique()))
     )
     df["Fully equipped kitchen"] = df["Fully equipped kitchen"].astype(np.float16)
     df["Furnished"] = df["Furnished"].astype(np.float16)
@@ -240,6 +250,10 @@ def create_database():
     subset: Tuple = ("Swimming pool","Open fire","Garden","Terrace", "Fully equipped kitchen")
     df.loc[:, subset] = df.loc[:, subset].astype(float).fillna(0)
 
+
+    df["Province"] = df["Locality"].map(DataStruct.get_province)
+    df["Region"] = df["Locality"].map(DataStruct.get_region)
+    df = df.loc[np.logical_and(df["Province"].notna(), df["Region"].notna()), :]
 
 
 
