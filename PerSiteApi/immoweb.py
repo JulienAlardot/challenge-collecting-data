@@ -25,7 +25,6 @@ class Immoweb:
 
     def __init__(self):
         self.data_immo: Dict = {}
-        self.url_error: List[str] = []
         self.zip_code: List = DataStruct().get_zipcode_data()
 
         self._per_site_api_path = os.path.dirname(__file__)
@@ -36,6 +35,7 @@ class Immoweb:
         self.path_immo = os.path.join(self._data_immoweb_path, "url_immo.csv")
         self.path_data_immoweb = os.path.join(self._data_immoweb_path, "datas_immoweb.csv")
         self.path_clusters = os.path.join(self._data_immoweb_path, "url_cluster.csv")
+        self.path_errors = os.path.join(self._data_immoweb_path, "url_errors.csv")
 
         s = pd.read_csv(self.path_results_search)["0"]
         self.url_results_search: set = set(s)
@@ -43,12 +43,20 @@ class Immoweb:
         self.url_immo: set = set(s)
         s = pd.read_csv(self.path_clusters)["0"]
         self.url_cluster: set = set(s)
+        self.url_from_clusters: List[Dict] = []
+        s = pd.read_csv(self.path_errors)["0"]
+        self.url_errors: set = set(s)
         self.datas_immoweb = pd.read_csv(self.path_data_immoweb, index_col=0) # DataFrame: with all data collected
-        self.list_of_url_datas = set(self.datas_immoweb.Url)
+        self.url_of_datas = set(self.datas_immoweb.Url)
+
+        self.url_immo.update(self.url_from_clusters)
+        self.url_immo.remove(self.url_errors)
+        self.url_immo.remove(self.url_of_datas)
 
         self.r_num_page = re.compile("\d{1,3}$")
         self.r_zip_code = re.compile("/\d{4}/")
 
+        self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0'}
         self.url_vente: str = "https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-"
         self.immo_path: Dict = {
             #"Zip": ["customers", "location","postalCode"],
@@ -80,7 +88,6 @@ class Immoweb:
         self.data_layer_json: Dict = {
             "Zip": ["classified", "zip"]
         }
-        self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0'}
 
         ##### Lists used for the MultiThreading ######
         self.provinces_house_apartement = [
@@ -143,9 +150,9 @@ class Immoweb:
 
     def scan_page_bien_immobilier(self, url: str):
         # print(url)
-        if url not in self.list_of_url_datas:
+        if url not in self.url_of_datas:
             page = requests.get(url)
-            text = page.text
+            text: str = page.text
             new_property: Dict = {}
             zip_locality = re.split("/", url)
             new_property["Zip"] = zip_locality[8]
@@ -157,15 +164,16 @@ class Immoweb:
                 print("cluster", url)
                 text, suite = self.coupe_page(text, "window.classified = ", "};")
                 text += "}"
-                json_immo = json.loads(text)
+                json_immo: Dict = json.loads(text)
                 cluster = json_immo["cluster"]
                 for unit in cluster["units"]:
                     for item in unit["items"]:
                         if item['saleStatus'] == "AVAILABLE":
                             # print("item available")
                             new_url_property_cluster: str = f"https://www.immoweb.be/fr/annonce/{item['subtype']}/a-vendre/{new_property['Locality']}/{new_property['Zip']}/{item['id']}"
+                            self.url_from_clusters.append(new_url_property_cluster)
                             # print("cluster new url :", new_url_property_cluster)
-                            self.scan_page_bien_immobilier(new_url_property_cluster)
+                            # self.scan_page_bien_immobilier(new_url_property_cluster)
 
             if "404 not found" not in text:  # Then
                 text, suite = self.coupe_page(text, "window.classified = ", "};")
@@ -182,6 +190,7 @@ class Immoweb:
                     self.save_data_to_csv()
                     print(self.counter, "nbr biens: ", len(self.datas_immoweb), "len", len(self.url_immo))
             else:  # If it's error 404
+                self.url_error.append(url)
                 print("Error 404", url)
 
     def loop_immo(self):
@@ -189,10 +198,13 @@ class Immoweb:
         for x in self.datas_immoweb.Url:
             self.url_immo.discard(x)
         print(len(self.url_immo))
-        print(len(self.list_of_url_datas))
+        print(len(self.url_of_datas))
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             executor.map(self.scan_page_bien_immobilier, self.url_immo)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            executor.map(self.scan_page_bien_immobilier, self.url_from_clusters)
 
         print(type(self.datas_immoweb), self.datas_immoweb)
         self.save_data_to_csv()
@@ -214,7 +226,7 @@ class Immoweb:
 
     def save_data_to_csv(self):
         self.datas_immoweb.to_csv(self.path_data_immoweb)
-        print("SAUVEGARDE A ", self.datas_immoweb.shape, "len url immo", len(self.url_immo), "len database", len(self.list_of_url_datas))
+        print("SAUVEGARDE A ", self.datas_immoweb.shape, "len url immo", len(self.url_immo), "len database", len(self.url_of_datas))
         print(self.datas_immoweb.tail())
 
     def _save_set_to_csv(self):
