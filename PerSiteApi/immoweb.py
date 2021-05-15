@@ -42,8 +42,7 @@ class Immoweb:
         s = pd.read_csv(self.path_immo)["0"]
         self.url_immo: set = set(s)
         s = pd.read_csv(self.path_clusters)["0"]
-        self.url_cluster: set = set(s)
-        self.url_from_clusters: List[Dict] = []
+        self.url_from_cluster: set = set(s)
         s = pd.read_csv(self.path_errors)["0"]
         self.url_errors: set = set(s)
         self.datas_immoweb = pd.read_csv(self.path_data_immoweb, index_col=0) # DataFrame: with all data collected
@@ -172,8 +171,8 @@ class Immoweb:
                             # print("item available")
                             new_url_property_cluster: str = f"https://www.immoweb.be/fr/annonce/{item['subtype']}/a-vendre/{new_property['Locality']}/{new_property['Zip']}/{item['id']}"
                             self.url_from_clusters.append(new_url_property_cluster)
-                            # print("cluster new url :", new_url_property_cluster)
-                            # self.scan_page_bien_immobilier(new_url_property_cluster)
+                self._save_clusters()
+
 
             if "404 not found" not in text:  # Then
                 text, suite = self.coupe_page(text, "window.classified = ", "};")
@@ -195,13 +194,21 @@ class Immoweb:
 
     def loop_immo(self):
         self.clean_url_immo()
-        for x in self.datas_immoweb.Url:
-            self.url_immo.discard(x)
+        self.url_of_datas = set(self.datas_immoweb.Url)
+        self.url_immo.update(self.url_from_clusters)
+        self.url_immo.remove(self.url_errors)
+        self.url_immo.remove(self.url_of_datas)
+
         print(len(self.url_immo))
         print(len(self.url_of_datas))
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             executor.map(self.scan_page_bien_immobilier, self.url_immo)
+
+        self.url_of_datas = set(self.datas_immoweb.Url)
+        self.url_immo.update(self.url_from_clusters)
+        self.url_immo.remove(self.url_errors)
+        self.url_immo.remove(self.url_of_datas)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             executor.map(self.scan_page_bien_immobilier, self.url_from_clusters)
@@ -236,7 +243,7 @@ class Immoweb:
 
     def _save_clusters(self):
         with open(self.path_clusters, 'w') as file:
-            df = pd.DataFrame(self.url_cluster)
+            df = pd.DataFrame(self.url_from_cluster)
             df.to_csv(file)
 
     def _save_url_immo(self):
@@ -302,8 +309,13 @@ class Immoweb:
     #  https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre/liege/province?countries=BE&orderBy=relevance&page=1
     def _generator_db_url(self) -> bool:
 
-        with ThreadPoolExecutorWithQueueSizeLimit(maxsize=12, max_workers=12) as executor:
-            executor.map(self._scan_page_list, self.provinces_house_apartement)
+        rerun = True
+        while rerun:
+            with ThreadPoolExecutorWithQueueSizeLimit(maxsize=12, max_workers=12) as executor:
+                executor.map(self._scan_page_list, self.provinces_house_apartement)
+
+            ask = input("Rerun ? (y/n)")
+            rerun = ask != "n"
 
 #       provinces_house_apartement
 #        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
