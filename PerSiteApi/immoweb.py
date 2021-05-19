@@ -45,7 +45,7 @@ class Immoweb:
         self.url_immo: set = set(s)
         s = pd.read_csv(self.path_clusters, index_col=0)["url"]
         self.url_from_clusters: set = set(s)
-        self.url_of_clusters: set = ()
+        self.url_of_clusters: set = set()
         s = pd.read_csv(self.path_errors, index_col=0)["url"]
         self.url_errors: set = set(s)
         self.datas_immoweb = pd.read_csv(self.path_data_immoweb, index_col=0)  # DataFrame: with all data collected
@@ -61,15 +61,13 @@ class Immoweb:
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0'}
         self.url_vente: str = "https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-"
         self.immo_path: Dict = {
-            #"Zip": ["customers", "location","postalCode"],
-            #"Locality": ["customers", "location", 'locality'],
             "Type of property": ["property", "type"],
             "Subtype of property": ["property", "subtype"],
             "Price": ["transaction", "sale", "price"],
             "Type of sale": ["transaction", "subtype"],
             "Number of rooms": ["property", "bedroomCount"],
             "Area": ["property", "netHabitableSurface"],
-            "Fully equipped kitchen": ["property", "kitchen","type"],  # !!! Kitchen peut être null !!
+            "Fully equipped kitchen": ["property", "kitchen", "type"],  # !!! Kitchen peut être null !!
             "Furnished": ["transaction", "sale", "isFurnished"],
             "Open fire": ["property", "fireplaceExists"],
             "Terrace": ["property", "hasTerrace"],
@@ -77,7 +75,7 @@ class Immoweb:
             "Garden": ["property", "hasGarden"],
             "Garden Area": ["property", "gardenSurface"],
             "Surface of the land": ["property", "land", "surface"],  # !!! land peut être null !
-            "Surface area of the plot of land": ["property", "land","surface"],  # !!! land peut être null !
+            "Surface area of the plot of land": ["property", "land", "surface"],  # !!! land peut être null !
             "Number of facades": ["property", "building", "facadeCount"],
             "Swimming pool": ["property", "hasSwimmingPool"],
             "State of the building": ["property", "building", "condition"]
@@ -93,28 +91,28 @@ class Immoweb:
 
         ##### Lists used for the MultiThreading ######
         self.provinces_house_apartement = [
-            ["house", "anvers/province"],
-            ["house", "limbourg/province"],
-            ["apartment", "flandre-occidentale/province"],
-            ["house", "flandre-orientale/province"],
-            ["house", "flandre-occidentale/province"],
-            ["house", "brabant-flamand/province"],
-            ["house", "brabant-wallon/province"],
-            ["house", "hainaut/province"],
-            ["apartment", "anvers/province"],
-            ["house", "liege/province"],
-            ["house", "luxembourg/province"],
-            ["house", "bruxelles/province"],
-            ["house", "namur/province"],
-            ["apartment", "flandre-orientale/province"],
-            ["apartment", "bruxelles/province"],
-            ["apartment", "hainaut/province"],
-            ["apartment", "liege/province"],
-            ["apartment", "brabant-flamand/province"],
-            ["apartment", "brabant-wallon/province"],
-            ["apartment", "limbourg/province"],
-            ["apartment", "luxembourg/province"],
-            ["apartment", "namur/province"]
+            ["apartment", "flandre-occidentale/province"],  # 209
+            ["house", "hainaut/province"],  # 167
+            ["house", "flandre-occidentale/province"],  # 161
+            ["apartment", "bruxelles/province"],  # 148
+            ["house", "flandre-orientale/province"],  # 147
+            ["apartment", "anvers/province"],  # 146
+            ["house", "anvers/province"],  # 132
+            ["house", "liege/province"],  # 117 pages
+            ["apartment", "flandre-orientale/province"],  # 110
+            ["house", "brabant-flamand/province"],  # 94
+            ["apartment", "brabant-flamand/province"],  # 72
+            ["house", "limbourg/province"],  # 59
+            ["apartment", "liege/province"],  # 55
+            ["house", "bruxelles/province"],  # 52
+            ["apartment", "hainaut/province"],  # 52
+            ["house", "namur/province"],  # 49
+            ["apartment", "limbourg/province"],  # 47
+            ["house", "brabant-wallon/province"],  # 47
+            ["house", "luxembourg/province"],  # 33
+            ["apartment", "brabant-wallon/province"],  # 27
+            ["apartment", "namur/province"],  # 18
+            ["apartment", "luxembourg/province"]  # 12
         ]
         self.reloop_province = [
             ["house", "hainaut/province"],
@@ -123,17 +121,17 @@ class Immoweb:
         self.counter = 0
 
     # retourne le milieu du texte entre les deux balises et le texte qui suit
-    def coupe_page(self, text, debut, fin, n=1):
-        debutT: int = text.index(debut) + len(debut)
-        text: str = text[debutT:]
-        finT: int = text.index(fin)
+    def coupe_page(self, text, start, end):
+        start_text: int = text.index(start) + len(start)
+        text: str = text[start_text:]
+        end_text: int = text.index(end)
 
-        if finT:
-            return text[:finT], text[finT:]
+        if end_text:
+            return text[:end_text], text[end_text:]
         else:
             return False, False
 
-    def json_to_dic (self, json_immo: dict) -> Dict:
+    def json_to_dic(self, json_immo: dict) -> Dict:
         # print("immo_path", self.immo_path)
         new_sale: Dict = {}
         for key, path in self.immo_path.items():
@@ -174,7 +172,7 @@ class Immoweb:
                     print(self.counter, "nbr biens: ", len(self.datas_immoweb), "len", len(self.url_immo))
                 return new_property
             else:  # If it's error 404
-                self.url_error.append(url)
+                self.url_errors.add(url)
                 print("Error 404", url)
                 return None
 
@@ -189,7 +187,7 @@ class Immoweb:
         print("url Immo", len(self.url_immo))
         print("url of datas", len(self.url_of_datas))
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutorWithQueueSizeLimit(maxsize=20, max_workers=20) as executor:
             news_properties = executor.map(self.scan_page_bien_immobilier, self.url_immo)
             for property in news_properties:
                 if property is not None:
@@ -204,10 +202,14 @@ class Immoweb:
 
     def run(self):
         print(self.datas_immoweb.shape)
-        self._generator_db_url()
+        #self._generator_db_url()
+        self.cluster()
         self._save_set_to_csv()
         self.clean_url_immo()
         self._save_url_immo()
+        print("delayer")
+        time.sleep(20)
+
         self.loop_immo()
         print("delayer")
         time.sleep(20)
@@ -248,30 +250,36 @@ class Immoweb:
         self.url_immo = new_set
 
     def find_url_in_clusters(self, url: str) -> List:
-
         page = requests.get(url)
         text: str = page.text
-        new_property: Dict = {}
-        zip_locality = re.split("/", url)
-        new_property["Zip"] = zip_locality[8]
-        new_property["Locality"] = zip_locality[7]
-        new_property["Url"] = url
-        new_property["Source"] = "Immoweb"
-        list_url = []
-        if "accordion--cluster" in text:  # If it's a cluster
-            print("cluster", url)
-            text, suite = self.coupe_page(text, "window.classified = ", "};")
-            text += "}"
-            json_immo: Dict = json.loads(text)
-            cluster = json_immo["cluster"]
-            for unit in cluster["units"]:
-                for item in unit["items"]:
-                    if item['saleStatus'] == "AVAILABLE":
-                        # print("item available")
-                        new_url_property_cluster: str = f"https://www.immoweb.be/fr/annonce/{item['subtype']}/a-vendre/{new_property['Locality']}/{new_property['Zip']}/{item['id']}"
-                        list_url.append(new_url_property_cluster)
-                        print(len(self.url_from_clusters))
-        return list_url
+        if "404 not found" not in text:
+            try:
+                new_property: Dict = {}
+                zip_locality = re.split("/", url)
+                new_property["Zip"] = zip_locality[8]
+                new_property["Locality"] = zip_locality[7]
+                new_property["Url"] = url
+                new_property["Source"] = "Immoweb"
+                list_url = []
+                # if "accordion--cluster" in text:  # If it's a cluster
+                # print("cluster", url)
+                text, suite = self.coupe_page(text, "window.classified = ", "};")
+                text += "}"
+                json_immo: Dict = json.loads(text)
+                cluster = json_immo["cluster"]
+                print(url, cluster)
+                for unit in cluster["units"]:
+                    for item in unit["items"]:
+                        if item['saleStatus'] == "AVAILABLE":
+                            new_url_property_cluster: str = f"https://www.immoweb.be/fr/annonce/{item['subtype']}/a-vendre/{new_property['Locality']}/{new_property['Zip']}/{item['id']}"
+                            list_url.append(new_url_property_cluster)
+
+                # print(len(list_url), type(list_url))
+                return list_url
+            except TypeError:
+                print("Error de Type", url)
+        else:
+            print("Error 404", url)
 
 # https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre?countries=BE&orderBy=cheapest&postalCodes=BE-1341
     def _scan_page_list(self, province: List):
@@ -281,7 +289,6 @@ class Immoweb:
         :return: Closed when finished.
         """
 
-        #url_list = f"{self.url_vente}{zip}"
         num_pages = 1
 
         regio = province[1]
@@ -303,7 +310,7 @@ class Immoweb:
                 text = driver.page_source
 
                 if "pagination__link pagination__link--next button button--text button--size-small" not in text:
-                    print(url_paged, " pas fin ou pas trouvé")
+                    print(url_paged, " pas end ou pas trouvé")
                     break
 
                 a_elements = driver.find_elements_by_css_selector('a.card__title-link')
@@ -320,26 +327,37 @@ class Immoweb:
 
     #  https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre/liege/province?countries=BE&orderBy=relevance&page=1
     def _generator_db_url(self):
-        rerun = True
-        while rerun:
-            with ThreadPoolExecutorWithQueueSizeLimit(maxsize=12, max_workers=12) as executor:
-                executor.map(self._scan_page_list, self.provinces_house_apartement)
-
-            print('pages de biens :', len(self.url_immo))
-            print('pages de résultats :', len(self.url_results_search))
-
-            finish = time.perf_counter()
-            print(f"fini selenium en {round(finish - self.start, 2)} secondes")
-            ask = input("Rerun ? (y/n)")
-            rerun = ask != "n"
-
-        clusters = {x for x in self.url_immo if "new-real-estate-project" not in x}
         with ThreadPoolExecutorWithQueueSizeLimit(maxsize=12, max_workers=12) as executor:
-            new_urls = executor.map(self.find_url_in_clusters, clusters)
+            executor.map(self._scan_page_list, self.provinces_house_apartement)
 
-        print(len(self.url_immo),  "+", new_urls)
-        self.url_immo.update(new_urls)
-        print(len(self.url_immo),  "+", new_urls)
+        print('pages de biens :', len(self.url_immo))
+        print('pages de résultats :', len(self.url_results_search))
+
+        finish = time.perf_counter()
+        print(f"fini selenium en {round(finish - self.start, 2)} secondes")
+        ask = input("Rerun ? (y/n)")
+        rerun = ask != "n"
+        print(rerun)
+        if rerun:
+            self._generator_db_url()
+        else:
+            self.cluster()
+
+    def cluster(self):
+        clusters = {x for x in self.url_immo if "new-real-estate-project" in x}
+        print(len(self.url_immo))
+        future: list = []
+        with ThreadPoolExecutorWithQueueSizeLimit(maxsize=20, max_workers=20) as executor:
+            future = executor.map(self.find_url_in_clusters, clusters)
+            print("ping")
+        for list_of_url in future:
+            for url in list_of_url:
+                self.url_immo.append(url)
+            print(type(list_of_url), list_of_url)
+
+        print(len(self.url_immo))
+        print("time sleep 5")
+        time.sleep(5)
 
 
 if __name__ == "__main__":
@@ -347,6 +365,6 @@ if __name__ == "__main__":
     immoweb.run()
 
 # 11h36
-# 1320 secondes selenium
+# 1165 secondes selenium 1456
 # 1852
 # 2400
