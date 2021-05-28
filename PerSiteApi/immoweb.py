@@ -4,13 +4,13 @@ from Core.datautils import DataStruct
 import re
 import pandas as pd
 
+import requests
 from selenium import webdriver
 from typing import List, Dict
 
 import queue
 import concurrent.futures
 
-import requests
 import json
 import time
 
@@ -78,12 +78,20 @@ class Immoweb:
             "Surface area of the plot of land": ["property", "land", "surface"],  # !!! land peut être null !
             "Number of facades": ["property", "building", "facadeCount"],
             "Swimming pool": ["property", "hasSwimmingPool"],
-            "State of the building": ["property", "building", "condition"]
+            "State of the building": ["property", "building", "condition"],
+            "last Modification Date": ["publication", "lastModificationDate"],
+            "Region": ["property", "location", "region"],
+            "Province": ["property", "location", "province"],
+            "Arrondissement": ["property", "location", "district"],
+            "Rue": ["property", "location", "street"],
+            "Numero": ["property", "location", "number"],
+            "Is Agency": ["customers", "type"]
         }
         self.json_path_clusters: Dict = {
             "id": ["cluster", "units", "items", "id"],  # units = List[0], items = List[x]
             "subtype": ["cluster", "units", "items", "subtype"],  # units = List[0], items = List[x]
             "saleStatus": ["cluster", "units", "items", "saleStatus"]  # units = List[0], items = List[x]
+
         }
         self.data_layer_json: Dict = {
             "Zip": ["classified", "zip"]
@@ -119,6 +127,7 @@ class Immoweb:
             ["apartment", "bruxelles/province"]
         ]
         self.counter = 0
+        self.counter_errors = 0
 
     # retourne le milieu du texte entre les deux balises et le texte qui suit
     def coupe_page(self, text, start, end):
@@ -133,23 +142,27 @@ class Immoweb:
 
     def json_to_dic(self, json_immo: dict) -> Dict:
         # print("immo_path", self.immo_path)
-        new_sale: Dict = {}
+        new_sale: Dict = dict()
+        # print("json_immo", json_immo)
         for key, path in self.immo_path.items():
+            # print(key, path)
             n: int = len(path)
             i: int = 0
             element = json_immo[path[i]]
-            if type(element) is list:
-                element = element[0]
-
             i += 1
-            while i < n and element is not None:
+
+            while (i < n) and (element is not None):
+                if type(element) is list:
+                    element = element[0]
                 element = element[path[i]]
                 i += 1
+
+            # print("i", i, key, element)
             new_sale[key] = element
+
         return new_sale
 
     def scan_page_bien_immobilier(self, url: str) -> Dict:
-        # print(url)
         if url not in self.url_of_datas:
             page = requests.get(url)
             text: str = page.text
@@ -159,15 +172,16 @@ class Immoweb:
             new_property["Locality"] = zip_locality[7]
             new_property["Url"] = url
             new_property["Source"] = "Immoweb"
+            # print("1", self.counter, url)
 
             if "404 not found" not in text:  # Then
                 text, suite = self.coupe_page(text, "window.classified = ", "};")
                 text += "}"
                 json_immo = json.loads(text)
+                # print("2", self.counter, url, new_property["Zip"], type(json_immo), json_immo)
                 new_property.update(self.json_to_dic(json_immo))
-                # print(new_property["Zip"], "len", len(self.url_immo))
+                print(self.counter, "len", len(self.url_immo), url)
                 self.counter += 1
-                print(self.counter, url)
                 if self.counter % 1000 == 0:
                     print(self.counter, "nbr biens: ", len(self.datas_immoweb), "len", len(self.url_immo))
                 return new_property
@@ -184,14 +198,21 @@ class Immoweb:
         self.url_immo.discard(self.url_errors)
         self.url_immo.discard(self.url_of_datas)
 
+        i = 0
+
         print("url Immo", len(self.url_immo))
         print("url of datas", len(self.url_of_datas))
 
         with ThreadPoolExecutorWithQueueSizeLimit(maxsize=20, max_workers=20) as executor:
+
             news_properties = executor.map(self.scan_page_bien_immobilier, self.url_immo)
             for property in news_properties:
+                i += 1
+                print(i)
                 if property is not None:
                     self.datas_immoweb.append(property, ignore_index=False, verify_integrity=False)
+                if i % 5000 == 0:
+                    self.save_data_to_csv()
 
         print(type(self.datas_immoweb), self.datas_immoweb)
         self.save_data_to_csv()
@@ -200,15 +221,24 @@ class Immoweb:
         finish = time.perf_counter()
         print(f"fini loop_immo en {round(finish-self.start_loop, 2)} secondes")
 
+        duration = 0.5  # seconds
+        freq = 440  # Hz
+        os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
+
+        ask = input("Rerun ? (y/n)")
+        rerun = ask != "n"
+        print(rerun)
+        if rerun:
+            self.loop_immo()
+
     def run(self):
         print(self.datas_immoweb.shape)
-        #self._generator_db_url()
-        self.cluster()
-        self._save_set_to_csv()
+        self._generator_db_url()
+        # self.cluster() # pour le testing, sinon, lancé dans generator url
         self.clean_url_immo()
         self._save_url_immo()
         print("delayer")
-        time.sleep(20)
+        time.sleep(1)
 
         self.loop_immo()
         print("delayer")
@@ -218,6 +248,9 @@ class Immoweb:
         print(f"fini en {round(finish-self.start, 2)} secondes")
 
     def save_data_to_csv(self):
+        duration = 0.5  # seconds
+        freq = 440  # Hz
+        os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
         self.datas_immoweb.to_csv(self.path_data_immoweb)
         print("SAUVEGARDE A ", self.datas_immoweb.shape, "len url immo", len(self.url_immo), "len database", len(self.url_of_datas))
         print("len url from clusters", len(self.url_from_clusters))
@@ -225,7 +258,7 @@ class Immoweb:
         finish = time.perf_counter()
         print(f"Save at {round(finish-self.start_loop, 2)} secondes from start_loop")
 
-    def _save_set_to_csv(self):
+    def _save_urls_results_to_csv(self):
         with open(self.path_results_search, 'w') as file:
             df = pd.DataFrame(self.url_results_search)
             df.to_csv(file)
@@ -267,7 +300,7 @@ class Immoweb:
                 text += "}"
                 json_immo: Dict = json.loads(text)
                 cluster = json_immo["cluster"]
-                print(url, cluster)
+                print(url)
                 for unit in cluster["units"]:
                     for item in unit["items"]:
                         if item['saleStatus'] == "AVAILABLE":
@@ -278,6 +311,17 @@ class Immoweb:
                 return list_url
             except TypeError:
                 print("Error de Type", url)
+            except ValueError:
+                print("Value Error", url)
+                self.counter_errors += 1
+                if (self.counter_errors % 100) == 0:
+                    os.system('play -nq -t alsa synth {} sine {}'.format(0.2, 440))
+                e = 500
+                if (self.counter_errors % e) == 0:
+                    print(f"{e} erreurs")
+                    time.sleep(e)
+                    os.system('play -nq -t alsa synth {} sine {}'.format(1, 440))
+
         else:
             print("Error 404", url)
 
@@ -321,20 +365,27 @@ class Immoweb:
 
             num_pages += 1
 
-        self._save_set_to_csv()
+        self._save_urls_results_to_csv()
         self._save_url_immo()
         driver.close()
 
     #  https://www.immoweb.be/fr/recherche/maison-et-appartement/a-vendre/liege/province?countries=BE&orderBy=relevance&page=1
     def _generator_db_url(self):
-        with ThreadPoolExecutorWithQueueSizeLimit(maxsize=12, max_workers=12) as executor:
+        with ThreadPoolExecutorWithQueueSizeLimit(maxsize=10, max_workers=10) as executor:
             executor.map(self._scan_page_list, self.provinces_house_apartement)
 
         print('pages de biens :', len(self.url_immo))
         print('pages de résultats :', len(self.url_results_search))
 
         finish = time.perf_counter()
-        print(f"fini selenium en {round(finish - self.start, 2)} secondes")
+        minutes = int(round(finish - self.start, 2) / 60)
+        secondes = round(finish - self.start, 2) % 60
+        print(f"fini selenium en {minutes} minutes et {secondes} secondes")
+
+        duration = 0.3  # seconds
+        freq = 440  # Hz
+        os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
+
         ask = input("Rerun ? (y/n)")
         rerun = ask != "n"
         print(rerun)
@@ -345,19 +396,32 @@ class Immoweb:
 
     def cluster(self):
         clusters = {x for x in self.url_immo if "new-real-estate-project" in x}
-        print(len(self.url_immo))
+        len_before = [len(self.url_immo), len(clusters)]
+        print(len(self.url_immo), len(clusters))
         future: list = []
-        with ThreadPoolExecutorWithQueueSizeLimit(maxsize=20, max_workers=20) as executor:
-            future = executor.map(self.find_url_in_clusters, clusters)
-            print("ping")
-        for list_of_url in future:
-            for url in list_of_url:
-                self.url_immo.append(url)
-            print(type(list_of_url), list_of_url)
+        try:
+            with ThreadPoolExecutorWithQueueSizeLimit(maxsize=20, max_workers=20) as executor:
+                future = executor.map(self.find_url_in_clusters, clusters, timeout=40)
+                print("ping")
+                for list_of_url in future:
+                    if list_of_url is not None:
+                        for url in list_of_url:
+                            self.url_immo.add(url)
+                        # print(type(list_of_url), list_of_url)
+        except concurrent.futures.TimeoutError:
+            print(len_before)
+            print('Time out error on cluster.', len(self.url_immo))
 
         print(len(self.url_immo))
-        print("time sleep 5")
-        time.sleep(5)
+        self._save_urls_results_to_csv()
+
+        os.system('play -nq -t alsa synth {} sine {}'.format(0.3, 440))
+
+        ask = input("Rerun ? (y/n)")
+        rerun = ask != "n"
+        print(rerun)
+        if rerun:
+            self.cluster()
 
 
 if __name__ == "__main__":
