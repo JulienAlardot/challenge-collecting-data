@@ -85,6 +85,9 @@ class Immoweb:
             "Arrondissement": ["property", "location", "district"],
             "Rue": ["property", "location", "street"],
             "Numero": ["property", "location", "number"],
+            "Etage": ["property", "location", "floor"],
+            "Latitude": ["property", "location", "latitude"],
+            "Longitude": ["property", "location", "longitude"],
             "Is Agency": ["customers", "type"]
         }
         self.json_path_clusters: Dict = {
@@ -184,6 +187,7 @@ class Immoweb:
                 self.counter += 1
                 if self.counter % 1000 == 0:
                     print(self.counter, "nbr biens: ", len(self.datas_immoweb), "len", len(self.url_immo))
+                self.datas_immoweb.append(new_property)
                 return new_property
             else:  # If it's error 404
                 self.url_errors.add(url)
@@ -210,11 +214,12 @@ class Immoweb:
                 i += 1
                 print(i)
                 if property is not None:
-                    self.datas_immoweb.append(property, ignore_index=False, verify_integrity=False)
+                    print (i, "property", i)
                 if i % 5000 == 0:
-                    self.save_data_to_csv()
+                    print(i, "save 5000")
 
         print(type(self.datas_immoweb), self.datas_immoweb)
+        time.sleep(20)
         self.save_data_to_csv()
         print("saved")
 
@@ -243,7 +248,7 @@ class Immoweb:
         self.loop_immo()
         print("delayer")
         time.sleep(20)
-        self.save_data_to_csv()
+        #self.save_data_to_csv()
         finish = time.perf_counter()
         print(f"fini en {round(finish-self.start, 2)} secondes")
 
