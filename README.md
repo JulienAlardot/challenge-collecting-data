@@ -35,14 +35,14 @@ We split up the sites to scraps as following :
 | ----------------- |:----------------------- |
 | Immoweb           | Alain                   |
 | LogicImmo         | Julien                  |
-| Vlan              | Jeff                    |
+| ImmoVlan          | Jeff                    |
 
 Julien and Alain were racing all day and night toward the record of 50 000
 
 ![Wacky races](https://cdnmetv.metv.com/Pjy5L-1461081939-3424-list_items-wacky_dirk_300.gif)
 
 
-J-F couldn't get past the captcha after trying with rotating headers, using selenium...
+We don't already past the captcha of ImmoVlan after trying with rotating headers, using selenium...
 
 ## Timeline
 From Monday 3 May to 6 May 2021
