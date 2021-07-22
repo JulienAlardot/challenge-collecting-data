@@ -52,7 +52,7 @@ We were racing all day and night toward the record of 50 000, (that we have beat
 
 - We don't already past the captcha of ImmoVlan in time after trying with rotating headers, using selenium.
 - We had to adapt our data to a common trunk found in the websites. Hence loosing informations.
-- We did not try any NLP technique to get more information and filter typos inside the code.
+- We could try NLP techniques to get more information and filter typos inside the code.
 - Most of the websites used having receive updates, the code as is isn't working anymore.
 
 ## Timeline
