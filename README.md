@@ -1,19 +1,25 @@
-
 # Collecting Data
+
 ## Description
+
 Small group project made at BeCode. The aim was to scrap real estate data from websites and create a Database
 of more than 10.000 houses for sale. This will be used later in the formation.
 Objective hoped by the groupe : 80k.
 
 ## Installation
+
 Main packages used:
+
 - Selenium
 - Pandas
 - Json
 - Request
 - BeautifulSoup
+
 ## Usage
+
 To scrap real estate data from websites and create a Dataset
+
 ## Visuals
 
 ![Data Columns](https://user-images.githubusercontent.com/77900800/117432179-98f26e00-af19-11eb-85bd-b91290e7f758.png)
@@ -22,12 +28,13 @@ To scrap real estate data from websites and create a Dataset
 
 
 ## Contributors
+
 The group working on this project is composed of:
+
 - [Alain Tiri](https://github.com/AlainTiri)
 - [Julien Alardot](https://github.com/JulienAlardot)
 - [Jean-François Sengier](https://github.com/JFSengier)
 
-Most of the work was done by Alain and Julien.
 We split up the sites to scraps as following : 
 
 
@@ -37,15 +44,21 @@ We split up the sites to scraps as following :
 | LogicImmo         | Julien                  |
 | ImmoVlan          | Jeff                    |
 
-Julien and Alain were racing all day and night toward the record of 50 000
+We were racing all day and night toward the record of 50 000, (that we have beaten)
 
 ![Wacky races](https://cdnmetv.metv.com/Pjy5L-1461081939-3424-list_items-wacky_dirk_300.gif)
 
+## Difficulties and improuvements
 
-We don't already past the captcha of ImmoVlan after trying with rotating headers, using selenium...
+- We don't already past the captcha of ImmoVlan in time after trying with rotating headers, using selenium.
+- We had to adapt our data to a common trunk found in the websites. Hence loosing informations.
+- We did not try any NLP technique to get more information and filter typos inside the code.
+- Most of the websites used having receive updates, the code as is isn't working anymore.
 
 ## Timeline
+
 From Monday 3 May to 6 May 2021
 
 ## How to use
+
 Run the Core.database_gen.load_database() to get the final database (the file is database.csv under Data)
